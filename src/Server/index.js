@@ -58,8 +58,14 @@ const broadcastGameState = (roomId) => {
 				name === player ? _.identity : _.curry(_.dissoc, 'held')
 			))
 		);
-		const filteredState = _.update(
-			state, 'hands', _.partial(_.reduceKV, fixHand, _.hashMap())
+		const discard = _.get(state, 'discard');
+		const topDiscard = _.count(discard) ? _.nth(discard, 0) : -1;
+		const filteredState = _.pipeline(
+			_.update(state, 'hands', _.partial(_.reduceKV, fixHand, _.hashMap())),
+			_.curry(_.assoc, 'deckCount', _.count(_.get(state, 'deck'))),
+			_.curry(_.assoc, 'discard', topDiscard),
+			_.curry(_.dissoc, 'deck'),
+			_.curry(_.assoc, 'player', player)
 		);
 		const response = API.GameState(roomId, filteredState);
 		socket.emit('API', _.encode(response));
@@ -67,23 +73,24 @@ const broadcastGameState = (roomId) => {
 };
 
 io.on('connection', (socket) => {
+	const G = {};
 	socket.on('API', (data) => {
 		const request = _.decode(data);
-		let playerName;
+		console.log(request);
 		_.match({
 			[API.Request.CreateRoom]: ({ name }) => {
-				playerName = name;
+				G.playerName = name;
 				const roomId = getRoomId();
 				games[roomId] = {
 					players: {
 						[name]: socket,
 					},
-					state: Liverpool.initGame(roomId, name)
+					state: Liverpool.initGame(roomId, name),
 				};
 				broadcastGameState(roomId);
 			},
 			[API.Request.JoinRoom]: ({ roomId, name }) => {
-				playerName = name;
+				G.playerName = name;
 				games[roomId].players[name] = socket;
 				games[roomId].state = Liverpool.joinGame(
 					games[roomId].state, name
@@ -97,14 +104,32 @@ io.on('connection', (socket) => {
 				broadcastGameState(roomId);
 			},
 			[API.Request.StartGame]: ({ roomId }) => {
+				games[roomId].state = Liverpool.startGame(games[roomId].state);
+				broadcastGameState(roomId);
 			},
 			[API.Request.MayI]: ({ roomId }) => {
+				games[roomId].state = Liverpool.mayI(
+					games[roomId].state, G.playerName
+				);
+				broadcastGameState(roomId);
 			},
 			[API.Request.TakeDiscard]: ({ roomId }) => {
+				games[roomId].state = Liverpool.takeDiscard(
+					games[roomId].state, G.playerName
+				);
+				broadcastGameState(roomId);
 			},
 			[API.Request.DrawDeck]: ({ roomId }) => {
+				games[roomId].state = Liverpool.drawDeck(
+					games[roomId].state, G.playerName
+				);
+				broadcastGameState(roomId);
 			},
 			[API.Request.Play]: ({ roomId, plays }) => {
+				games[roomId].state = Liverpool.play(
+					games[roomId].state, G.playerName, plays
+				);
+				broadcastGameState(roomId);
 			},
 		})(request);
 	});

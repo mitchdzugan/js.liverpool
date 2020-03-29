@@ -5,6 +5,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "Math": "0.0.1-security",
     "enumify": "^2.0.0",
     "express": "^4.17.1",
     "gen-computation": "^1.0.0",

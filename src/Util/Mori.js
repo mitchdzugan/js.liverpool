@@ -22,11 +22,16 @@ _.vec = (it) => (
 
 _.g = (k) => (coll) => _.get(coll, k);
 
-_.m = (obj) => _.hashMap(..._.pipeline(
-	_.vector(...Object.entries(obj)),
+const hashMapFromVPairs = (vpairs) => _.hashMap(..._.pipeline(
+	vpairs,
 	_.partial(_.mapcat, (pair) => _.vector(...pair)),
 	_.curry(_.intoArray),
 ));
+
+_.m = (obj) => _.pipeline(
+	_.vector(...Object.entries(obj)),
+	hashMapFromVPairs
+);
 
 class MatchEnum extends _.Enum {
 	static Default = new MatchEnum();
@@ -117,5 +122,29 @@ _.shuffle = (v) => {
 		a => _.vector(...a)
 	);
 };
+
+_.mkIdLookup = (v) => hashMapFromVPairs(
+	_.map((el, id) => [el, id], v, _.range())
+);
+
+_.mapValues = (f, hm) => _.reduceKV(
+	(agg, key, val) => _.assoc(agg, key, f(val, key)),
+	_.hashMap(),
+	hm
+);
+
+const extremeBy = (comp) => (f, v) => {
+	if (_.count(v) === 0) {
+		return null;
+	}
+
+	return _.reduce(
+		(extreme, curr) => comp(f(curr), f(extreme)) ? curr : extreme,
+		_.peek(v),
+		v
+	);
+};
+_.minBy = extremeBy((a, b) => a < b);
+_.maxBy = extremeBy((a, b) => a > b);
 
 export default _;

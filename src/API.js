@@ -33,7 +33,7 @@ export const DrawDeck = (roomId) => (
 	_.mk(Request.DrawDeck, { roomId })
 );
 export const Play = (roomId, plays) => (
-	_.mk(Request.JoinRoom, { roomId, plays })
+	_.mk(Request.Play, { roomId, plays })
 );
 
 export class Response extends _.Enum {
