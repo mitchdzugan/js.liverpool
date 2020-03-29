@@ -8,7 +8,7 @@
     "enumify": "^2.0.0",
     "express": "^4.17.1",
     "gen-computation": "^1.0.0",
-    "gen-impulse": "^1.0.0",
+    "gen-impulse": "^1.0.1",
     "mori": "^0.3.2",
     "option": "^0.2.4",
     "socket.io": "^2.3.0",
@@ -93,7 +93,14 @@
     "plugins": [
       "@babel/plugin-proposal-class-properties",
       "@babel/plugin-transform-runtime",
-			["module-resolver", { "root": ["./src"] }]
+      [
+        "module-resolver",
+        {
+          "root": [
+            "./src"
+          ]
+        }
+      ]
     ]
   }
 }
