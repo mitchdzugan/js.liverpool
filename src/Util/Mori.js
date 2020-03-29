@@ -1,4 +1,5 @@
 import _ from 'mori';
+import * as API from 'API';
 import {
 	Enumify
 } from 'enumify';
@@ -43,6 +44,9 @@ _.match = (funcs, ...args) => (hm) => {
 	let type = hm;
 	if (_.isMori(hm)) {
 		type = _.type(hm);
+		if (_.isMori(type)) {
+			type = _.toJs(type);
+		}
 		_.each(_.keys(hm), (key) => {
 			if (key === '__type') {
 				return;
@@ -70,5 +74,48 @@ _.not = (b) => !b;
 _.id = _.g('__id');
 
 _.setId = (hm, id) => _.assoc(hm, '__id', id);
+
+_.decode = (s) => _.toClj(JSON.parse(s));
+
+_.encode = (m) => {
+	const js = _.toJs(_.toClj(m));
+	const walk = (el, path) => {
+		if (Array.isArray(el)) {
+			el.forEach((next, i) => walk(next, [...path, i]));
+		}
+		else if ((typeof el === "object" || typeof el === 'function') && (el !== null)) {
+			Object.entries(el).forEach(([key, next]) => {
+				if (key === '__type') {
+					const raw_enum = _.getIn(m, [...path, key]);
+					const encoded_enum = Object.keys({ [raw_enum]: 0 })[0];
+					el[key] = encoded_enum;
+				} else {
+					walk(next, [...path, key]);
+				}
+			});
+		}
+	};
+	walk(js, []);
+	return JSON.stringify(js);
+};
+
+_.shuffle = (v) => {
+	const shuffleArray = (a) => {
+		var j, x, i;
+		for (i = a.length - 1; i > 0; i--) {
+			j = Math.floor(Math.random() * (i + 1));
+			x = a[i];
+			a[i] = a[j];
+			a[j] = x;
+		}
+		return a;
+	};
+	return _.pipeline(
+		v,
+		_.intoArray,
+		shuffleArray,
+		a => _.vector(...a)
+	);
+};
 
 export default _;

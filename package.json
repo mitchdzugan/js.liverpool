@@ -10,7 +10,9 @@
     "gen-computation": "^1.0.0",
     "gen-impulse": "^1.0.0",
     "mori": "^0.3.2",
-    "option": "^0.2.4"
+    "option": "^0.2.4",
+    "socket.io": "^2.3.0",
+    "socket.io-client": "^2.3.0"
   },
   "scripts": {
     "build-watch": "parcel watch ./src/Client/index.html",
@@ -29,6 +31,7 @@
     "@babel/plugin-transform-runtime": "^7.9.0",
     "@babel/preset-env": "^7.9.0",
     "@testing-library/jest-dom": "^5.3.0",
+    "babel-plugin-module-resolver": "^4.0.0",
     "concurrently": "^5.1.0",
     "jest": "^25.2.3",
     "jest-environment-jsdom-fourteen": "^1.0.1",
@@ -89,7 +92,8 @@
     ],
     "plugins": [
       "@babel/plugin-proposal-class-properties",
-      "@babel/plugin-transform-runtime"
+      "@babel/plugin-transform-runtime",
+			["module-resolver", { "root": ["./src"] }]
     ]
   }
 }
