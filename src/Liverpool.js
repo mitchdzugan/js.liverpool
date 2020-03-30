@@ -1,10 +1,11 @@
 import _ from 'Util/Mori';
+import mdo from './mdo.macro.js';
 
 export class Goal extends _.Enum {
 	static Set = new Goal();
 	static Run = new Goal();
 	static _ = this.closeEnum();
-}
+};
 
 const hands = [
 	{ [Goal.Set]: 2, [Goal.Run]: 0 },

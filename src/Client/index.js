@@ -21,7 +21,10 @@ const e_response = FRP.mkEvent((pushSelf) => {
 DOM.attach('app', { postRequest, e_response }, App, () => {
 	const containers = Array.from(
 		document.getElementsByClassName('dragula')
-	);
+	).filter(c => !c._hasDragula);
+	containers.forEach(c => {
+		c._hasDragula = true;
+	});
 	dragula(containers, {
 		revertOnSpill: true
 	});
