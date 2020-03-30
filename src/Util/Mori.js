@@ -45,6 +45,7 @@ _.type = _.g('__type');
 _.isMori = _.isCollection;
 
 _.match = (funcs, ...args) => (hm) => {
+	console.log('MATCH', 1, { funcs, args, hm });
 	let obj = {};
 	let type = hm;
 	if (_.isMori(hm)) {
@@ -64,6 +65,7 @@ _.match = (funcs, ...args) => (hm) => {
 	}
 	const f = funcs[type] || funcs[_.DEFAULT];
 	const newArgs = args.concat([obj]);
+	console.log('MATCH', 2, { f });
 	if (_.isFunction(f)) {
 		return f(...newArgs);
 	}

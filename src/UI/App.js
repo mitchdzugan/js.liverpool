@@ -1,8 +1,9 @@
 import DOM from 'gen-impulse/DOM';
 import FRP from 'gen-impulse/FRP';
 import * as API from 'API';
-import { toString, fromInt } from 'Card';
+import { toString, toSrc, fromInt } from 'Card';
 import _ from 'Util/Mori';
+import CardSVGs from '@younestouati/playing-cards-standard-deck';
 
 const requestOn = (e, req, getArgs = (_, id) => [id]) => (function* () {
 	const postRequest = yield* DOM.getEnv('postRequest');
@@ -38,6 +39,8 @@ const OutsideGame = () => (function* () {
 	})());
 })();
 
+const RenderCard = (card) => DOM.img({ src: toSrc(fromInt(card)) });
+
 const InsideGame = () => (function* () {
 	const state = yield* DOM.getEnv('gameState');
 	const started = _.get(state, 'started');
@@ -68,7 +71,8 @@ const InsideGame = () => (function* () {
 			})());
 			const discard = _.get(state, 'discard');
 			const s = i => toString(fromInt(i));
-			yield* DOM.div({}, DOM.text(`Discard: ${s(discard)}`));
+			yield* DOM.div({}, DOM.text('Discard:'));
+			yield* DOM.div({}, RenderCard(discard));
 			const player = _.get(state, 'player');
 			const hasDrawn = _.get(state, 'hasDrawn');
 			const id = _.get(idLookup, player);
@@ -78,9 +82,9 @@ const InsideGame = () => (function* () {
 			const mayIs = _.getIn(hands, [player, 'mayIs']);
 			yield* DOM.div({ className: 'box' }, (function* () {
 				yield* DOM.createElement('h3', {}, DOM.text("Hand"));
-				yield* DOM.ul({}, (function* () {
+				yield* DOM.div({ className: 'dragula' }, (function* () {
 					for (const card of _.intoArray(held)) {
-						const d_card = yield* DOM.li({}, DOM.text(s(card)));
+						const d_card = yield* DOM.div({ className: 'pcard' }, RenderCard(card));
 						if (hasDrawn) {
 							yield* requestOn(
 								d_card.onClick, API.Play, (e, roomId) => [roomId, _.m({ discard: card })]

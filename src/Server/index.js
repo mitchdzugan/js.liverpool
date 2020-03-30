@@ -85,7 +85,11 @@ io.on('connection', (socket) => {
 					players: {
 						[name]: socket,
 					},
-					state: Liverpool.initGame(roomId, name),
+					state: _.pipeline(
+						Liverpool.initGame(roomId, name),
+						_.curry(Liverpool.joinGame, 'Test Account'),
+						_.identity,
+					)
 				};
 				broadcastGameState(roomId);
 			},
