@@ -1,14 +1,14 @@
 import _ from 'Util/Mori';
 
 export class Request extends _.Enum {
-	static CreateRoom = new Request();
-	static JoinRoom = new Request();
-	static ConfigureRoom = new Request();
-	static StartGame = new Request();
-	static MayI = new Request();
-	static TakeDiscard = new Request();
-	static DrawDeck = new Request();
-	static Play = new Request();
+	static CreateRoom = new Request('Request.CreateRoom');
+	static JoinRoom = new Request('Request.JoinRoom');
+	static ConfigureRoom = new Request('Request.ConfigureRoom');
+	static StartGame = new Request('Request.StartGame');
+	static MayI = new Request('Request.MayI');
+	static TakeDiscard = new Request('Request.TakeDiscard');
+	static DrawDeck = new Request('Request.DrawDeck');
+	static Play = new Request('Request.Play');
 	static _ = this.closeEnum();
 }
 export const CreateRoom = (name) => (
@@ -37,8 +37,8 @@ export const Play = (roomId, plays) => (
 );
 
 export class Response extends _.Enum {
-	static GameState = new Response();
-	static Error = new Response();
+	static GameState = new Response('Response.GameState');
+	static Error = new Response('Response.Error');
 	static _ = this.closeEnum();
 }
 export const GameState = (roomId, gameState) => (

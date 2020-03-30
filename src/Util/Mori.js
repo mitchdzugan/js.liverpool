@@ -6,7 +6,18 @@ import {
 
 _.update = (src, k, f) => _.updateIn(src, [k], f);
 
-_.Enum = Enumify;
+_.Enum = class Enum extends Enumify {
+	constructor(s) {
+		super();
+		this.s = s;
+	}
+
+	toString() {
+		return this.s || (
+			this.constructor.name + '.' + this.enumKey
+		);
+	}
+};
 
 _.isFunction = (obj) => (
 	!!(obj && obj.constructor && obj.call && obj.apply)
