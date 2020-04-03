@@ -16,7 +16,10 @@ export const Joker = (color) => (
 );
 export const NoCard = _.mk(CardType.NoCard);
 
-export const fromInt = (n) => _.match({
+const fromInt_h = (n) => _.match({
+	[null]: () => NoCard,
+	[undefined]: () => NoCard,
+	[NaN]: () => NoCard,
 	[-1]: () => NoCard,
 	[52]: () => Joker('Red'),
 	[53]: () => Joker('Black'),
@@ -37,6 +40,14 @@ export const fromInt = (n) => _.match({
 		n1 % 13
 	)
 })(n % 54);
+
+export const fromInt = (n) => {
+	if (!n && n !== 0) {
+		return NoCard;
+	}
+
+	return fromInt_h(n);
+};
 
 export const toString = _.match({
 	[CardType.NoCard]: () => "No Card",

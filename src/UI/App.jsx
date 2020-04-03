@@ -34,7 +34,6 @@ const NoRoom = () => {
       {cardLoop(i-1)}
     </div>
   );
-  console.log({ name });
   const canCreate = name.length > 2;
   const canJoin = canCreate && roomId.length === 6;
   const create = () => canCreate && (
@@ -151,10 +150,12 @@ const InGame = () => {
       setTimeout(
         () => {
           const myHandEl = document.getElementById('my-hand');
+          if (!myHandEl) {
+            return;
+          }
           const height = myHandEl.clientHeight;
-          const handHeight = `${height}px`;
-          if (myHandHeight !== handHeight) {
-            setMyHandHeight(handHeight);
+          if (myHandHeight !== height) {
+            setMyHandHeight(height);
           }
         },
         0
@@ -179,6 +180,22 @@ const InGame = () => {
 	const mayIs = _.getIn(hands, [player, 'mayIs']);
   const canMayI = !isTurn && !hasDrawn && mayIs > 0;
   const [ held, setHeld ] = useState(_.getIn(hands, [player, 'held']));
+  useEffect(
+    () => {
+      const srvr = _.getIn(hands, [player, 'held']);
+		  const srvr_set = new Set(_.intoArray(srvr));
+		  const held_set = new Set(_.intoArray(held));
+		  const news = _.vector(
+			  ...([...srvr_set].filter(card => !held_set.has(card)))
+		  );
+		  const updatedHeld = _.pipeline(
+			  _.concat(news, held),
+			  _.partial(_.filter, (card) => srvr_set.has(card))
+		  );
+      setHeld(updatedHeld);
+    },
+    [_.getIn(hands, [player, 'held'])]
+  );
   const isMayI = _.pipeline(
     _.get(state, 'mayIs'),
     _.partial(_.reduce, (has, id) => has || id === playerId, false)
@@ -190,7 +207,6 @@ const InGame = () => {
     postRequest(API.UnMayI(roomId))
   );
   const isSel = (card) => card === selectedCard;
-  console.log(selectedCard);
   const onCard = (card) => (e) => {
     if (!selectedCard) {
       e.nativeEvent.ignore = true;
@@ -261,9 +277,6 @@ const InGame = () => {
 		);
     setHeld(updatedHeld);
   };
-  const className = card => (
-    `${!selectedCard ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}`
-  );
 
   const deckLoop = (i) => !i ? null : (
     <div className="pcard deck-loop" >
@@ -271,11 +284,12 @@ const InGame = () => {
       {deckLoop(i-1)}
     </div>
   );
-  const renderDeck = (deckCount) => {
+  const renderDeck = (deckCount, onClick = () => {}) => {
     const showCount = Math.min(deckCount, 11);
     return (
       <>
         <div
+          onClick={onClick}
           style={{ width: `${25 + 2*showCount}px` }}
           className="deck-top"
         >
@@ -296,6 +310,31 @@ const InGame = () => {
   const mkButtonClass = (isBold) => (
     `button is-small${isBold ? ' has-text-weight-bold' : ''}`
   );
+  const isPicking = isTurn && !hasDrawn;
+  const drawDeck = () => (
+    isPicking && postRequest(API.DrawDeck(roomId))
+  );
+  const takeDiscard = () => (
+    isPicking && postRequest(API.TakeDiscard(roomId))
+  );
+  const [plays, setPlays] = useState(_.hashMap());
+  const inPlay = _.reduceKV(
+    (inPlay, k, v) => k === 'discard' ? (
+      _.assoc(inPlay, v, true)
+    ) : (
+      _.reduceKV(
+        (inPlay, k, v) => _.assoc(inPlay, v, true),
+        inPlay,
+        v
+      )
+    ),
+    _.hashMap(),
+    plays,
+  );
+  const className = card => (
+    `${!selectedCard ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
+  );
+
   return (
     <>
 			<div className="in-game">
@@ -319,21 +358,22 @@ const InGame = () => {
             </p>
           </div>
           {isTable && (
-            <div className="deck" >
+            <div className={`deck${isPicking ? ' picking' : ''}`} >
               <div className="grant" >
                 <button className="button is-info is-small">
                   Grant May I
                 </button>
               </div>
 						  <div
-							  className="pcard"
+                onClick={takeDiscard}
+							  className="pcard discarded"
 							  data-card-val={discard}
 						  >
 							  <img
 								  src={toSrc(fromInt(discard))}
 							  />
 						  </div>
-              {renderDeck(deckCount)}
+							{renderDeck(deckCount, drawDeck)}
             </div>
           )}
 				</div>
@@ -433,15 +473,107 @@ const InGame = () => {
               )}
 				    </button>
 			    </div>
-          <div
-            style={{ ...(isMayI ? { transform: 'translateY(0)' } : {}) }}
-            className="play-board"
-          >
-            <div className="pcard">
-              <img src="/cards/15.3.png" />
-            </div>
-            <div style={{ height: myHandHeight }} />
-          </div>
+					{(() => {
+              const onDiscard = (e) => {
+                e.nativeEvent.ignore = true;
+                if (!selectedCard) {
+                  return;
+                }
+                setPlays(_.assoc(plays, 'discard', selectedCard));
+                setSelectedCard(null);
+              };
+              const onCancel = () => setPlays(_.hashMap());
+              const myDiscard = _.get(plays, 'discard');
+            const discardSrc = toSrc(fromInt(myDiscard));
+            const [viewTable, setViewTable] = useState(false);
+            let transform = 'translateY(100%)';
+            if (isTurn && hasDrawn) {
+              if (!viewTable) {
+                transform = 'translateY(0)';
+              } else {
+                transform = 'translateY(190px)';
+              }
+            }
+              return (
+                <div
+                  style={{ transform }}
+                  className="play-board"
+                >
+									<div className="play-controls" >
+										<button onClick={onCancel} className="button is-danger is-small">
+											Cancel
+										</button>
+										<div className="discard-space">
+											<div onClick={onDiscard} className="pcard">
+												<img src={discardSrc} />
+											</div>
+											<span>Discard</span>
+										</div>
+										<button className="button is-danger is-small">
+											Finish
+										</button>
+									</div>
+                  <div className="play-closer is-size-7" >
+										<div />
+                    <div
+                      onClick={() => setViewTable(!viewTable)}
+										>
+											View {viewTable ? 'Plays' : 'Table'}
+										</div>
+										<div />
+                  </div>
+                  <div className="target" >
+                    <div className="target-plays">
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+                    </div>
+                    <span>Set</span>
+                  </div>
+                  <div className="target" >
+                    <div className="target-plays">
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+                    </div>
+                    <span>Run</span>
+                  </div>
+                  <div className="target" >
+                    <div className="target-plays">
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+											<div className="pcard">
+												<img src={toSrc(fromInt(-1))} />
+											</div>
+                    </div>
+                    <span>Run</span>
+                  </div>
+									<div style={{ height: `${myHandHeight}px` }} />
+								</div>
+              );
+          })()}
         </>
       )}
     </>
