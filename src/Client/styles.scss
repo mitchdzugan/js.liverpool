@@ -16,6 +16,24 @@ $grey-dark: hsl(0, 0%, 49%);
 		}
 }
 
+.extra-cards {
+		height: 45px;
+		margin: 5px;
+		position: relative;
+		display: inline-block;
+		.pcard {
+				margin: 0;
+				position: absolute;
+				transform: translateX(15px);
+				top: 0px;
+				left: 0px;
+		}
+		> .pcard {
+				top: 5px;
+				transform: translateX(0px);
+		}
+}
+
 .deck-top {
 		height: 45px;
 		margin: 5px;
@@ -266,6 +284,10 @@ $grey-dark: hsl(0, 0%, 49%);
 		}
 }
 
+.invalid {
+		filter: drop-shadow($red 0px 0px 6px);
+}
+
 .pcard {
 		margin: 5px;
 		display: inline-block;
@@ -334,6 +356,11 @@ body {
 				color: #192419;
 				text-shadow: #477148 -2px -1px 1px;
 				font-size: 1.4em;
+
+				&.cancel {
+						margin-left: 10px;
+						color: $red;
+				}
 		}
 }
 
@@ -368,7 +395,7 @@ body {
 				font-size: 2em;
 				text-align: center;
 				.quarantine {
-						transform: rotate(-20deg) translateX(-2em) translateY(1em);
+						transform: rotate(-20deg) translateX(-1.5em) translateY(0.8em);
 						color: $black;
 						font-family: 'carbontype';
 						text-shadow: hsl(0, 0%, 56%) 1px 1px 1px;

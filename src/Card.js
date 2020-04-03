@@ -16,6 +16,16 @@ export const Joker = (color) => (
 );
 export const NoCard = _.mk(CardType.NoCard);
 
+export const isJoker = _.match({
+	[CardType.Joker]: () => true,
+	[_.DEFAULT]: () => false,
+});
+
+export const isNoCard = _.match({
+	[CardType.NoCard]: () => true,
+	[_.DEFAULT]: () => false,
+});
+
 const fromInt_h = (n) => _.match({
 	[null]: () => NoCard,
 	[undefined]: () => NoCard,

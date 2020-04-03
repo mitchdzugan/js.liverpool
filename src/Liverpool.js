@@ -1,5 +1,6 @@
 import _ from 'Util/Mori';
 import mdo from './mdo.macro.js';
+import { fromInt, isJoker, isNoCard } from 'Card';
 
 export class Goal extends _.Enum {
 	static Set = new Goal();
@@ -16,6 +17,111 @@ const hands = [
 	{ [Goal.Set]: 1, [Goal.Run]: 2 },
 	{ [Goal.Set]: 0, [Goal.Run]: 3 },
 ];
+
+const validateSetPlay = (play) => {
+	if (_.count(play) < 3) {
+		return false;
+	}
+
+	return 1 === _.pipeline(
+		play,
+		_.partial(_.map, fromInt),
+		_.partial(_.filter, _.comp(_.not, isJoker)),
+		_.partial(_.groupBy, _.g('val')),
+		_.keys,
+		_.count
+	);
+};
+
+const validateRunPlay = (play) => {
+	if (_.count(play) < 4) {
+		return false;
+	}
+
+	const cards = _.pipeline(
+		play,
+		_.partial(_.map, fromInt)
+	);
+
+	const isSuited = 1 === _.pipeline(
+		cards,
+		_.partial(_.filter, _.comp(_.not, isJoker)),
+		_.partial(_.groupBy, _.g('suit')),
+		_.keys,
+		_.count
+	);
+
+	if (!isSuited) {
+		return false;
+	}
+
+	return _.pipeline(
+		cards,
+		_.partial(
+			_.reduce,
+			({ hasInit, isValid, offset, init }, card) => {
+				if (!isValid) {
+					return { isValid };
+				}
+
+				if (isJoker(card)) {
+					return { hasInit, isValid, offset: offset + 1, init };
+				}
+
+				const n = _.get(card, 'n');
+
+				if (!hasInit) {
+					const theInit = n - offset;
+					const isValidInit = theInit >= 0 && theInit + _.count(cards) < 15;
+					return !isValidInit ? { isValid: false } : {
+						hasInit: true,
+						offset: offset + 1,
+						isValid: true,
+						init: n - offset
+					};
+				}
+
+				return (init + offset) % 13 !== n ? { isValid: false } : {
+					hasInit,
+					init,
+					isValid,
+					offset: offset + 1,
+				};
+			},
+			{ hasInit: false, isValid: true, offset: 0 }
+		),
+		({ isValid }) => isValid
+	);
+};
+
+export const validatePlay = (type, play) => {
+	const hasNoCard = _.reduce(
+		(has, card) => has || isNoCard(fromInt(card)),
+		false,
+		play
+	);
+
+	const hasDuplicates = _.pipeline(
+		play,
+		_.partial(_.groupBy, _.identity),
+		_.keys,
+		_.count,
+		(uniqueCount) => uniqueCount < _.count(play)
+	);
+
+	if (hasNoCard || hasDuplicates) {
+		return false;
+	}
+
+	return _.match({
+		[Goal.Set]: () => validateSetPlay(play),
+		[Goal.Run]: () => validateRunPlay(play),
+	})(type);
+};
+
+export const getGoal = (state) => (
+	hands[_.get(state, 'handId')]
+);
 
 export const initGame = (roomId, player) => _.m({
 	roomId,
@@ -35,7 +141,7 @@ export const setNumDecks = (state, numDecks) => (
 	_.assoc(state, 'numDecks', numDecks)
 );
 
-const HAND_SIZE = 11;
+const HAND_SIZE = 21;
 export const startGame = (state) => {
 	const players = _.shuffle(_.get(state, 'players'));
 	const numDecks = _.get(state, 'numDecks');
@@ -43,7 +149,7 @@ export const startGame = (state) => {
 	const idLookup = _.mkIdLookup(players);
 	const scores = _.mapValues(() => 0, idLookup);
 	const money = _.get(state, 'money', _.mapValues(() => -25, scores));
-	const handId = 0;
+	const handId = 1;
 	const dealerId = 0;
 	const turnId = 1;
 	const mayIs = _.vector();

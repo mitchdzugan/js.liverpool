@@ -2,6 +2,7 @@ import React from 'react';
 import FRP from 'gen-impulse/FRP';
 import * as API from 'API';
 import { toString, toSrc, fromInt } from 'Card';
+import { Goal, getGoal, validatePlay } from 'Liverpool';
 import _ from 'Util/Mori';
 
 const C = React.createContext();
@@ -132,11 +133,21 @@ const WaitingStart = () => {
 const InGame = () => {
   const { state, postRequest } = useContext(C);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [[selectedPlay, unPlay], setSelectedPlay] = useState([]);
+  const hasSelected = selectedCard || selectedCard === 0;
+  const hasSelectedPlay = selectedPlay || selectedPlay === 0;
   const [myHandHeight, setMyHandHeight] = useState("0px");
   useEffect(
     () => {
-      const f = (e) => (
-        setTimeout(() => !e.ignore && setSelectedCard(null), 0)
+      const f = (e) => setTimeout(
+        () => {
+          if (e.ignore) {
+            return;
+          }
+          setSelectedCard(null);
+          setSelectedPlay([]);
+        },
+        0
       );
       document.body.addEventListener('click', f, false);
       return () => (
@@ -162,12 +173,17 @@ const InGame = () => {
       );
     }
   );
+  const [viewTable, setViewTable] = useState(false);
   const roomId = _.get(state, 'roomId');
   const players = _.get(state, 'players');
 	const idLookup = _.get(state, 'idLookup');
 	const hands = _.get(state, 'hands');
 	const dealerId = _.get(state, 'dealerId');
 	const turnId = _.get(state, 'turnId');
+  useEffect(
+    () => setViewTable(false),
+    [turnId]
+  );
 	const discard = _.get(state, 'discard');
 	const s = i => toString(fromInt(i));
 	const player = _.get(state, 'player');
@@ -208,15 +224,22 @@ const InGame = () => {
   );
   const isSel = (card) => card === selectedCard;
   const onCard = (card) => (e) => {
-    if (!selectedCard) {
+    if (!hasSelected) {
       e.nativeEvent.ignore = true;
       e.stopPropagation();
-      setSelectedCard(card);
+      if (card === selectedPlay) {
+        unPlay();
+      } else {
+        if (!_.get(inPlay, card)) {
+          setSelectedCard(card);
+        }
+      }
+      setSelectedPlay([]);
       return;
     }
   };
   const onCardParent = (e) => {
-    if (!selectedCard) {
+    if (!hasSelected) {
       return;
     }
 		const { clientX, clientY, target } = e;
@@ -319,20 +342,31 @@ const InGame = () => {
   );
   const [plays, setPlays] = useState(_.hashMap());
   const inPlay = _.reduceKV(
-    (inPlay, k, v) => k === 'discard' ? (
-      _.assoc(inPlay, v, true)
-    ) : (
-      _.reduceKV(
-        (inPlay, k, v) => _.assoc(inPlay, v, true),
-        inPlay,
-        v
-      )
-    ),
+    (inPlay, k, v) => _.match({
+      discard: () => _.assoc(inPlay, v, true),
+      down: () => _.reduceKV(
+				(inPlay, k, v) => _.reduceKV(
+					(inPlay, k, v) => _.reduce(
+						(inPlay, v) => _.assoc(
+							inPlay,
+							_.isVector(v) ? _.nth(v, 0) : v,
+							true
+						),
+						inPlay,
+						v
+					),
+					inPlay,
+					v
+				),
+				inPlay,
+				v
+			)
+    })(k),
     _.hashMap(),
     plays,
   );
   const className = card => (
-    `${!selectedCard ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
+    `${!hasSelected ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
   );
 
   return (
@@ -474,18 +508,17 @@ const InGame = () => {
 				    </button>
 			    </div>
 					{(() => {
-              const onDiscard = (e) => {
-                e.nativeEvent.ignore = true;
-                if (!selectedCard) {
-                  return;
-                }
-                setPlays(_.assoc(plays, 'discard', selectedCard));
-                setSelectedCard(null);
-              };
-              const onCancel = () => setPlays(_.hashMap());
-              const myDiscard = _.get(plays, 'discard');
+						const onDiscard = (e) => {
+							e.nativeEvent.ignore = true;
+							if (!hasSelected) {
+								return;
+							}
+							setPlays(_.assoc(plays, 'discard', selectedCard));
+							setSelectedCard(null);
+						};
+						const onCancel = () => setPlays(_.hashMap());
+						const myDiscard = _.get(plays, 'discard');
             const discardSrc = toSrc(fromInt(myDiscard));
-            const [viewTable, setViewTable] = useState(false);
             let transform = 'translateY(100%)';
             if (isTurn && hasDrawn) {
               if (!viewTable) {
@@ -494,85 +527,169 @@ const InGame = () => {
                 transform = 'translateY(190px)';
               }
             }
+            // TODO remove when not testing
+            transform = 'translateY(0)';
+            const renderGoal = (type) => (id) => {
+              const label = _.match({
+                [Goal.Set]: () => 'Set',
+                [Goal.Run]: () => 'Run',
+              })(type);
+              const req = _.match({
+                [Goal.Set]: () => 3,
+                [Goal.Run]: () => 4,
+              })(type);
+              const curr = _.getIn(
+                plays,
+                ['down', type, id],
+                _.vec(_.map(() => -1, _.range(req)))
+              );
+              const hasAny = _.reduce(
+                (has, card) => has || card >= 0,
+                false,
+                curr,
+              );
+              const isInvalid = hasAny && !validatePlay(type, curr);
+              const hasAll = _.reduce(
+                (has, card) => has && card >= 0,
+                true,
+                curr,
+              );
+              const targets = _.map(
+                (targetId) => {
+                  const card = _.nth(curr, targetId);
+                  const onClick = (e) => {
+							      e.nativeEvent.ignore = true;
+							      if (!hasSelected) {
+                      if (hasSelectedPlay) {
+                        setSelectedPlay([]);
+                      } else {
+                        if (card > -1) {
+                          setSelectedPlay([
+                            card,
+                            () => setPlays(_.assocIn(plays, ['down', type, id, targetId], -1))
+                          ]);
+                        }
+                      }
+								      return;
+							      }
+                    if (hasAll) {
+                      let concat = false;
+                      let args = [curr, _.vector(selectedCard)];
+                      if (targetId === 0) {
+                        concat = true;
+                        args = [_.vector(selectedCard), curr];
+                      }
+                      if (targetId === req - 1) {
+                        concat = true;
+                      }
+                      if (concat) {
+							          setPlays(_.assocIn(
+                          plays,
+                          ['down', type, id],
+                          _.vec(_.concat(...args))
+                        ));
+							          setSelectedCard(null);
+                        return;
+                      }
+                    }
+							      setPlays(_.assocIn(
+                      plays,
+                      ['down', type, id],
+                      _.assoc(curr, targetId, selectedCard)
+                    ));
+							      setSelectedCard(null);
+                  };
+                  const needsExtra = targetId === req - 1 && _.count(curr) > req;
+                  const extras = _.subvec(curr, req - 1);
+                  const renderExtra = (eId) => {
+                    if (eId >= _.count(extras)) {
+                      return null;
+                    }
+                    const card = _.nth(extras, eId);
+                    const imgClassName = selectedPlay === card ? "selected" : "";
+                    return (
+										  <div className="pcard">
+											  <img
+                          className={imgClassName}
+                          src={toSrc(fromInt(_.nth(extras, eId)))}
+                        />
+                        {renderExtra(eId + 1)}
+										  </div>
+                    );
+                  };
+                  const extraWidth = `${15 + 15 * _.count(extras)}px`;
+                  const imgClassName = selectedPlay === card ? "selected" : "";
+                  return needsExtra ? (
+										<div style={{ width: extraWidth }} onClick={onClick} key={targetId} className="extra-cards">
+                      {renderExtra(0)}
+										</div>
+                  ) : (
+										<div onClick={onClick} key={targetId} className="pcard">
+											<img
+                        className={imgClassName}
+                        src={toSrc(fromInt(card))}
+                      />
+										</div>
+                  );
+                },
+                _.range(req)
+              );
               return (
-                <div
-                  style={{ transform }}
-                  className="play-board"
-                >
-									<div className="play-controls" >
-										<button onClick={onCancel} className="button is-danger is-small">
-											Cancel
-										</button>
-										<div className="discard-space">
-											<div onClick={onDiscard} className="pcard">
-												<img src={discardSrc} />
-											</div>
-											<span>Discard</span>
-										</div>
-										<button className="button is-danger is-small">
-											Finish
-										</button>
+								<div key={`${type}.${id}`} className="target" >
+									<div className="target-plays">
+                    {_.intoArray(targets)}
 									</div>
-                  <div className="play-closer is-size-7" >
-										<div />
-                    <div
-                      onClick={() => setViewTable(!viewTable)}
-										>
-											View {viewTable ? 'Plays' : 'Table'}
-										</div>
-										<div />
-                  </div>
-                  <div className="target" >
-                    <div className="target-plays">
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-                    </div>
-                    <span>Set</span>
-                  </div>
-                  <div className="target" >
-                    <div className="target-plays">
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-                    </div>
-                    <span>Run</span>
-                  </div>
-                  <div className="target" >
-                    <div className="target-plays">
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-											<div className="pcard">
-												<img src={toSrc(fromInt(-1))} />
-											</div>
-                    </div>
-                    <span>Run</span>
-                  </div>
-									<div style={{ height: `${myHandHeight}px` }} />
+									<span className={isInvalid ? 'invalid' : ''} >{label}</span>
+                  {hasAny && (
+									  <span
+                      className="cancel"
+                      onClick={() => (
+							          setPlays(_.updateIn(plays, ['down', type], _.curry(_.dissoc, id)))
+                      )}
+                    >
+                      ✗
+                    </span>
+                  )}
 								</div>
               );
+            };
+            const goal = getGoal(state);
+            const goals = [
+              ..._.intoArray(_.range(goal[Goal.Set])).map(renderGoal(Goal.Set)),
+              ..._.intoArray(_.range(goal[Goal.Run])).map(renderGoal(Goal.Run))
+            ];
+						return (
+							<div
+								style={{ transform }}
+								className="play-board"
+							>
+								<div className="play-controls" >
+									<button onClick={onCancel} className="button is-danger is-small">
+										Cancel
+									</button>
+									<div className="discard-space">
+										<div onClick={onDiscard} className="pcard">
+											<img src={discardSrc} />
+										</div>
+										<span>Discard</span>
+									</div>
+									<button className="button is-danger is-small">
+										Finish
+									</button>
+								</div>
+								<div className="play-closer is-size-7" >
+									<div />
+									<div
+										onClick={() => setViewTable(!viewTable)}
+									>
+										View {viewTable ? 'Plays' : 'Table'}
+									</div>
+									<div />
+								</div>
+                {goals}
+								<div style={{ height: `${myHandHeight}px` }} />
+							</div>
+						);
           })()}
         </>
       )}
