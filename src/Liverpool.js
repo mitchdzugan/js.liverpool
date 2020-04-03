@@ -85,6 +85,15 @@ export const mayI = (state, playerName) => {
 	}));
 };
 
+export const unMayI = (state, playerName) => {
+	const idLookup = _.get(state, 'idLookup');
+	const mayIs = _.get(state, 'mayIs');
+	const id = _.get(idLookup, playerName);
+	return _.merge(state, _.m({
+		mayIs: _.filter((pId) => pId !== id, mayIs)
+	}));
+};
+
 export const takeDiscard = (state, playerName) => {
 	const discard = _.get(state, 'discard');
 	const hands = _.get(state, 'hands');

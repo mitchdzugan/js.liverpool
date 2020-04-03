@@ -133,6 +133,7 @@ const WaitingStart = () => {
 const InGame = () => {
   const { state, postRequest } = useContext(C);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [myHandHeight, setMyHandHeight] = useState("0px");
   useEffect(
     () => {
       const f = (e) => (
@@ -145,6 +146,21 @@ const InGame = () => {
     },
     [],
   );
+  useEffect(
+    () => {
+      setTimeout(
+        () => {
+          const myHandEl = document.getElementById('my-hand');
+          const height = myHandEl.clientHeight;
+          const handHeight = `${height}px`;
+          if (myHandHeight !== handHeight) {
+            setMyHandHeight(handHeight);
+          }
+        },
+        0
+      );
+    }
+  );
   const roomId = _.get(state, 'roomId');
   const players = _.get(state, 'players');
 	const idLookup = _.get(state, 'idLookup');
@@ -154,15 +170,24 @@ const InGame = () => {
 	const discard = _.get(state, 'discard');
 	const s = i => toString(fromInt(i));
 	const player = _.get(state, 'player');
+	const playerId = _.get(idLookup, player);
 	const hasDrawn = _.get(state, 'hasDrawn');
 	const deckCount = _.get(state, 'deckCount');
 	const id = _.get(idLookup, player);
 	const isTurn = turnId === id;
 	const isDealer = dealerId === id;
 	const mayIs = _.getIn(hands, [player, 'mayIs']);
+  const canMayI = !isTurn && !hasDrawn && mayIs > 0;
   const [ held, setHeld ] = useState(_.getIn(hands, [player, 'held']));
+  const isMayI = _.pipeline(
+    _.get(state, 'mayIs'),
+    _.partial(_.reduce, (has, id) => has || id === playerId, false)
+  );
   const mayI = () => (
     postRequest(API.MayI(roomId))
+  );
+  const unMayI = () => (
+    postRequest(API.UnMayI(roomId))
   );
   const isSel = (card) => card === selectedCard;
   console.log(selectedCard);
@@ -175,6 +200,9 @@ const InGame = () => {
     }
   };
   const onCardParent = (e) => {
+    if (!selectedCard) {
+      return;
+    }
 		const { clientX, clientY, target } = e;
 		const cardWidth = 46;
 		const cardHeight = 35;
@@ -257,39 +285,113 @@ const InGame = () => {
       </>
     );
   };
+  let mayIClassName = "may-i";
+  mayIClassName += isMayI ? " cancel" : "";
+  mayIClassName += canMayI ? "" : " cant";
+  const mkKey = (card) => _.pipeline(
+    _.reduce((agg, card) => `${agg}-${card}`, "", held),
+    (soFar) => `${soFar}, ${card}`
+  );
+  const [isTable, setIsTable] = useState(true);
+  const mkButtonClass = (isBold) => (
+    `button is-small${isBold ? ' has-text-weight-bold' : ''}`
+  );
   return (
     <>
 			<div className="in-game">
-				<div className="main-controls">
-          <div className="deck" >
-            <div className="grant" >
-              <button className="button is-info is-small">
-                Grant May I
+				<div className={`main-controls${isTable ? ' hide-controls' : ''}`}>
+          <div className="field has-addons" >
+            <p className="control">
+              <button
+                onClick={() => setIsTable(true)}
+                className={mkButtonClass(isTable)}
+              >
+                Table
               </button>
-            </div>
-						<div
-							className="pcard"
-							data-card-val={discard}
-						>
-							<img
-								src={toSrc(fromInt(discard))}
-							/>
-						</div>
-            {renderDeck(deckCount)}
+            </p>
+            <p className="control">
+              <button
+                onClick={() => setIsTable(false)}
+                className={mkButtonClass(!isTable)}
+              >
+                Scores
+              </button>
+            </p>
           </div>
+          {isTable && (
+            <div className="deck" >
+              <div className="grant" >
+                <button className="button is-info is-small">
+                  Grant May I
+                </button>
+              </div>
+						  <div
+							  className="pcard"
+							  data-card-val={discard}
+						  >
+							  <img
+								  src={toSrc(fromInt(discard))}
+							  />
+						  </div>
+              {renderDeck(deckCount)}
+            </div>
+          )}
 				</div>
+        {!isTable && (
+          <div className="score-container" >
+						<table className="table">
+							<thead>
+								<th>Hand</th>
+								<th>Mitch</th>
+								<th>Mom</th>
+								<th>Dad</th>
+							</thead>
+							<tbody>
+								<tr><th>1</th><td>10</td><td>5</td><td>0</td></tr>
+								<tr><th>2</th><td>10</td><td>5</td><td>0</td></tr>
+								<tr><th>3</th><td>10</td><td>5</td><td>0</td></tr>
+								<tr><th>4</th><td></td><td></td><td></td></tr>
+								<tr><th>5</th><td></td><td></td><td></td></tr>
+								<tr><th>6</th><td></td><td></td><td></td></tr>
+								<tr><th>7</th><td></td><td></td><td></td></tr>
+							</tbody>
+							<tfoot>
+								<th>Cash</th><td>+0.75</td><td>-0.25</td><td>-0.5</td>
+							</tfoot>
+						</table>
+          </div>
+        )}
+        {isTable && (
         <div className="players">
           {_.intoArray(players).map(player => {
-	          const id = _.get(idLookup, player);
-            const isTurn = id === turnId;
+	          const playerId = _.get(idLookup, player);
+            const isTurn = playerId === turnId;
             let pClassName = "player";
             pClassName += isTurn ? ' turn' : '';
+            const mayIs = _.getIn(hands, [player, 'mayIs']);
+            const isMayI = _.pipeline(
+              _.get(state, 'mayIs'),
+              _.partial(_.reduce, (has, id) => has || id === playerId, false)
+            );
+            const renderChip = (i) => {
+              const active = isMayI && i === mayIs - 1;
+              const used = i >= mayIs;
+              let className = "may-i-chip";
+              className += active ? " active" : "";
+              className += used ? " used" : "";
+              return <div className={className}/>;
+            };
             return (
               <div key={player} className={pClassName} >
                 <div className="text">{player}</div>
 								<div key={player} className="player-contents" >
 									<div className="board-hand">
 										{renderDeck(_.getIn(hands, [player, 'heldCount']))}
+                    <div className="may-i-chips">
+                      {renderChip(0)}
+                      {renderChip(1)}
+                      {renderChip(2)}
+                    </div>
 									</div>
 								</div>
               </div>
@@ -297,29 +399,51 @@ const InGame = () => {
           })}
           <div className="reserved-space"/>
         </div>
+        )}
 			</div>
-			<div className="my-hand">
-				<div id="card-parent" onClick={onCardParent}>
-					{_.intoArray(held).map(card => (
-						<div
-							key={card}
-							className="pcard"
-							data-card-val={card}
-							onClick={onCard(card)}
-						>
-							<img
-								className={className(card)}
-								src={toSrc(fromInt(card))}
-							/>
-						</div>
-					))}
-					<button className="may-i-spacer" />
-				</div>
-				<button className="may-i" onClick={mayI} >
-					May I <br />
-					{mayIs}
-				</button>
-			</div>
+      {isTable && (
+        <>
+			    <div id="my-hand" className="my-hand">
+				    <div id="card-parent" onClick={onCardParent}>
+					    {_.intoArray(held).map((card, ind) => (
+						    <div
+							    key={mkKey(card)}
+							    className="pcard"
+							    data-card-val={card}
+							    onClick={onCard(card)}
+						    >
+							    <img
+								    className={className(card)}
+								    src={toSrc(fromInt(card))}
+							    />
+						    </div>
+					    ))}
+					    <button className="may-i-spacer" />
+				    </div>
+				    <button
+              disabled={!canMayI}
+              className={mayIClassName}
+              onClick={isMayI ? unMayI : mayI}
+            >
+              {isMayI ? 'Cancel' : (
+                <>
+					        May I <br />
+					        {mayIs}
+                </>
+              )}
+				    </button>
+			    </div>
+          <div
+            style={{ ...(isMayI ? { transform: 'translateY(0)' } : {}) }}
+            className="play-board"
+          >
+            <div className="pcard">
+              <img src="/cards/15.3.png" />
+            </div>
+            <div style={{ height: myHandHeight }} />
+          </div>
+        </>
+      )}
     </>
   );
 };

@@ -123,6 +123,12 @@ io.on('connection', (socket) => {
 				);
 				broadcastGameState(roomId);
 			},
+			[API.Request.UnMayI]: ({ roomId }) => {
+				games[roomId].state = Liverpool.unMayI(
+					games[roomId].state, G.playerName
+				);
+				broadcastGameState(roomId);
+			},
 			[API.Request.TakeDiscard]: ({ roomId }) => {
 				games[roomId].state = Liverpool.takeDiscard(
 					games[roomId].state, G.playerName
