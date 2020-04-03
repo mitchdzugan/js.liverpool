@@ -1,11 +1,14 @@
+import React from 'react';
+import { renderToString } from 'react-dom/server';
 import fs from 'fs';
 import express from 'express';
 import http from 'http';
 import SocketIO from 'socket.io';
 import DOM from 'gen-impulse/DOM';
 import FRP from 'gen-impulse/FRP';
-import { App } from 'UI/App';
+import { babelFix } from 'UI/BabelFix';
 import _ from 'Util/Mori';
+import { App } from 'UI/App.jsx';
 import * as API from 'API';
 import * as Liverpool from 'Liverpool';
 
@@ -18,9 +21,12 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Listening on port ${PORT}!`));
 
 nodeapp.get('/', function(req, res) {
-	DOM.toMarkup({ e_response: FRP.never }, App).then(({ markup }) => {
-		res.send(html.replace('__SSR_CONTENT__', markup));
-	});
+	const markup = renderToString(
+		React.createElement(App, { e_response: FRP.never })
+	);
+	// DOM.toMarkup({ e_response: FRP.never }, App).then(({ markup }) => {
+	res.send(html.replace('__SSR_CONTENT__', markup));
+	// });
 });
 
 nodeapp.use(express.static('public'));

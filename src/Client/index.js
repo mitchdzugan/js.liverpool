@@ -1,6 +1,8 @@
+import React from 'react';
+import { render } from 'react-dom';
 import DOM from 'gen-impulse/DOM';
 import FRP from 'gen-impulse/FRP';
-import { App } from 'UI/App';
+import { App } from 'UI/App.jsx';
 import SocketIO from 'socket.io-client';
 import dragula from 'dragula';
 import _ from 'Util/Mori';
@@ -18,12 +20,8 @@ const e_response = FRP.mkEvent((pushSelf) => {
 	return () => socket.off('API');
 });
 
-DOM.attach('app', { postRequest, e_response }, App, () => {
-	const containers = Array.from(
-		document.getElementsByClassName('dragula')
-	).filter(c => !c._hasDragula);
-	containers.forEach(c => {
-		c._hasDragula = true;
-	});
-	// dragula(containers, {revertOnSpill: true});
-});
+render(
+	React.createElement(App, { postRequest, e_response }),
+	document.getElementById('app')
+);
+
