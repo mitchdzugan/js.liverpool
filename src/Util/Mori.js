@@ -151,7 +151,7 @@ const extremeBy = (comp) => (f, v) => {
 
 	return _.reduce(
 		(extreme, curr) => comp(f(curr), f(extreme)) ? curr : extreme,
-		_.peek(v),
+		_.nth(v, 0),
 		v
 	);
 };

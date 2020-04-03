@@ -12,6 +12,36 @@ class Screen extends _.Enum {
 	static _ = Screen.closeEnum();
 }
 
+class AdjustHeld extends _.Enum {
+	static UpdateGameState = new AdjustHeld();
+	static ManualChange = new AdjustHeld();
+	static _ = AdjustHeld.closeEnum();
+}
+const UpdateGameState = (state) => (
+	_.mk(AdjustHeld.UpdateGameState, { state })
+);
+const ManualChange = (updated) => (
+	_.mk(AdjustHeld.ManualChange, { updated })
+);
+const reduceHeld = (curr, action) => _.match({
+	[AdjustHeld.UpdateGameState]: ({ state }) => {
+		const player = _.get(state, 'player');
+		const hands = _.get(state, 'hands');
+		const held = _.getIn(hands, [player, 'held']) || _.vector();
+		_.log({ held, curr });
+		const held_set = new Set(_.intoArray(held));
+		const curr_set = new Set(_.intoArray(curr));
+		const news = _.vector(
+			...([...held_set].filter(card => !curr_set.has(card)))
+		);
+		return _.pipeline(
+			_.concat(news, curr),
+			_.partial(_.filter, (card) => held_set.has(card))
+		);
+	},
+	[AdjustHeld.ManualChange]: ({ updated }) => updated,
+})(action);
+
 const s_reduce = (f_, s) => (function*() {
 	const f = (prev, curr) => {
 		return f_(prev, curr);
@@ -29,6 +59,10 @@ const getCurrScreen = (state) => {
 	return _.get(state, 'started') ? Screen.InGame : Screen.WaitingStart;
 };
 
+
+const e_delay = (ms, e) => FRP.mkEvent(
+	pushSelf => FRP.consume(v => setTimeout(() => pushSelf(v), ms), e)
+);
 const s_bindKeyedDOM = (s, toKey, render) => (
 	DOM.s_bindDOM(s, v => DOM.keyed(toKey(v), render(v)))
 );
@@ -38,9 +72,6 @@ const fadeInOut = (s, toKey, render) => (function*() {
 	);
 	const s_faded = yield* DOM.s_use((function*() {
 		const s_key = yield* FRP.s_fmap(toKey, s);
-		const e_delay = (ms, e) => FRP.mkEvent(
-			pushSelf => FRP.consume(v => setTimeout(() => pushSelf(v), ms), e)
-		);
 		const s_delay = (ms, s) => (function*() {
 			const e = FRP.s_changed(s);
 			const i = FRP.s_inst(s);
@@ -159,7 +190,13 @@ const NoRoom = () => (function*() {
 	})());
 })();
 
-const RenderCard = (card) => DOM.img({ src: toSrc(fromInt(card)) });
+const RenderCard = (card, inner = f => f({})) => (
+	DOM.div({ className: 'pcard', ['data-card-val']: card },
+		inner(attrs => (
+			DOM.img({ ...attrs, src: toSrc(fromInt(card)) })
+		))
+	)
+);
 
 const WaitingStart = () => (function*() {
 	const state = yield* DOM.getEnv('gameState');
@@ -169,8 +206,7 @@ const WaitingStart = () => (function*() {
 
 
 	yield* DOM.div({ className: 'field has-addons' }, (function*() {
-		yield* DOM.p(
-			{ className: 'control' },
+		yield* DOM.p({ className: 'control' },
 			DOM.button({ className: 'button is-static' }, DOM.text("Room ID"))
 		);
 		yield* DOM.p({ className: 'control' }, (function*() {
@@ -210,64 +246,184 @@ const WaitingStart = () => (function*() {
 
 const InGame = () => (function*() {
 	const state = yield* DOM.getEnv('gameState');
-	yield* DOM.keyed('started', (function*() {
-		const players = _.get(state, 'players');
-		const idLookup = _.get(state, 'idLookup');
-		const hands = _.get(state, 'hands');
-		const dealerId = _.get(state, 'dealerId');
-		const turnId = _.get(state, 'turnId');
-		yield* DOM.div({}, DOM.text('Players'));
-		yield* DOM.ul({}, (function*() {
-			for (const player of _.intoArray(players)) {
-				const id = _.get(idLookup, player);
-				const isTurn = turnId === id;
-				const isDealer = dealerId === id;
-				const heldCount = _.getIn(hands, [player, 'heldCount']);
-				const mayIs = _.getIn(hands, [player, 'mayIs']);
-				yield* DOM.li({}, DOM.div({}, (function*() {
-					const italics = isDealer ? 'is-italic ' : '';
-					const bold = isTurn ? 'has-text-weight-bold' : '';
-					const className = `${italics}${bold}`;
-					yield* DOM.div({ className }, DOM.text(player));
-					yield* DOM.div({}, DOM.text(`Cards: ${heldCount}`));
-					yield* DOM.div({}, DOM.text(`May Is: ${mayIs}`));
-				})()));
+	yield* DOM.e_collectAndReduce('selectedCard', (_, card) => card, null, DOM.keyed('started', (function*() {
+		const s_selectedCard = yield* DOM.getEnv('selectedCard');
+		const e_pageClick = FRP.mkEvent(
+			(pushSelf) => {
+				const f = () => {
+					const selectedCard = FRP.s_inst(s_selectedCard);
+					console.log({ selectedCard }, 'pageClick');
+					setTimeout(() => selectedCard && pushSelf(null), 100);
+				};
+				document.body.addEventListener('click', f);
+				return () => document.body.removeEventListener('click', f);
 			}
-		})());
-		const discard = _.get(state, 'discard');
-		const s = i => toString(fromInt(i));
-		yield* DOM.div({}, DOM.text('Discard:'));
-		yield* DOM.div({}, RenderCard(discard));
-		const player = _.get(state, 'player');
-		const hasDrawn = _.get(state, 'hasDrawn');
-		const id = _.get(idLookup, player);
-		const isTurn = turnId === id;
-		const isDealer = dealerId === id;
-		const held = _.getIn(hands, [player, 'held']);
-		const mayIs = _.getIn(hands, [player, 'mayIs']);
-		yield* DOM.div({ className: 'box' }, (function*() {
-			yield* DOM.createElement('h3', {}, DOM.text("Hand"));
-			yield* DOM.div({ className: 'dragula' }, (function*() {
-				for (const card of _.intoArray(held)) {
-					const d_card = yield* DOM.div({ className: 'pcard' }, RenderCard(card));
-					if (hasDrawn) {
-						yield* requestOn(
-							d_card.onClick, API.Play, (e, roomId) => [roomId, _.m({ discard: card })]
-						);
-					}
+		);
+		yield* DOM.e_consume((sel) => {
+			FRP.push(sel, FRP.s_changed(s_selectedCard));
+		}, e_pageClick);
+		// yield* DOM.e_emit('selectedCard', e_pageClick);
+		// yield* DOM.s_bindDOM(s_selectedCard, (selectedCard) => (function*() {
+		const s_myHeld = yield* DOM.getEnv('myHeld');
+		yield* DOM.s_bindDOM(s_myHeld, (held) => (function*() {
+			const players = _.get(state, 'players');
+			const idLookup = _.get(state, 'idLookup');
+			const hands = _.get(state, 'hands');
+			const dealerId = _.get(state, 'dealerId');
+			const turnId = _.get(state, 'turnId');
+			yield* DOM.div({}, DOM.text('Players'));
+			yield* DOM.ul({}, (function*() {
+				for (const player of _.intoArray(players)) {
+					const id = _.get(idLookup, player);
+					const isTurn = turnId === id;
+					const isDealer = dealerId === id;
+					const heldCount = _.getIn(hands, [player, 'heldCount']);
+					const mayIs = _.getIn(hands, [player, 'mayIs']);
+					yield* DOM.li({}, DOM.div({}, (function*() {
+						const italics = isDealer ? 'is-italic ' : '';
+						const bold = isTurn ? 'has-text-weight-bold' : '';
+						const className = `${italics}${bold}`;
+						yield* DOM.div({ className }, DOM.text(player));
+						yield* DOM.div({}, DOM.text(`Cards: ${heldCount}`));
+						yield* DOM.div({}, DOM.text(`May Is: ${mayIs}`));
+					})()));
 				}
 			})());
-			if (isTurn && !hasDrawn) {
-				const d_discard = yield* DOM.button({}, DOM.text('Take Discard'));
-				const d_deck = yield* DOM.button({}, DOM.text('Draw Deck'));
-				yield* requestOn(d_discard.onClick, API.TakeDiscard);
-				yield* requestOn(d_deck.onClick, API.DrawDeck);
-			} else if (!hasDrawn) {
-				const d_mayI = yield* DOM.button({}, DOM.text('May I'));
-				yield* requestOn(d_mayI.onClick, API.MayI);
-			}
+			const discard = _.get(state, 'discard');
+			const s = i => toString(fromInt(i));
+			yield* DOM.div({}, DOM.text('Discard:'));
+			yield* RenderCard(discard);
+			const player = _.get(state, 'player');
+			const hasDrawn = _.get(state, 'hasDrawn');
+			const id = _.get(idLookup, player);
+			const isTurn = turnId === id;
+			const isDealer = dealerId === id;
+			const mayIs = _.getIn(hands, [player, 'mayIs']);
+			yield* DOM.div({ className: 'my-hand' }, (function*() {
+				yield* DOM.createElement('h3', {}, DOM.text("Hand"));
+				const d_parent = yield* DOM.div({ id: 'card-parent' }, (function*() {
+					let i = 0;
+					for (const card of _.intoArray(held)) {
+						i++;
+						yield* DOM.keyed(`${card}.${i}`, (function*() {
+							const d_card = yield* RenderCard(card, (inner) => (
+								DOM.s_bindDOM(s_selectedCard, (selectedCard) => {
+									const isSelected = selectedCard === card;
+									const className = isSelected ? 'selected clickable' : 'clickable';
+									return inner({ className });
+								})
+							));
+							// if (!selectedCard) {
+
+							const e_setSelected = FRP.fmap(
+								(e) => {
+									console.log('is this doing anything...');
+									e.stopPropagation();
+									return card;
+								},
+								FRP.filter(() => !FRP.s_inst(s_selectedCard), d_card.onClick)
+							);
+							// yield* DOM.e_emit('selectedCard',);
+							yield* DOM.e_consume(sel => {
+								FRP.push(sel, FRP.s_changed(s_selectedCard));
+							}, e_setSelected);
+							// }
+							if (hasDrawn) {
+								yield* requestOn(
+									d_card.onClick, API.Play, (e, roomId) => [roomId, _.m({ discard: card })]
+								);
+							}
+						})());
+					}
+				})());
+				const closestCards = _.pipeline(
+					d_parent.onClick,
+					_.partial(FRP.fmap, (e) => {
+						// e.stopPropagation();
+						const { clientX, clientY, target } = e;
+						const cardWidth = 46;
+						const cardHeight = 35;
+						const closest = _.pipeline(
+							document.getElementById('card-parent').children,
+							Array.from,
+							(children) => _.vector(...children),
+							_.partial(_.map, (el) => ({ el, rect: el.getBoundingClientRect() })),
+							_.partial(_.map, ({ el, rect: { x, y, width, height } }) => {
+								const distX = (width / 2) + x - clientX;
+								const cardVal = parseInt(el.dataset.cardVal, 10);
+								return {
+									distX: Math.abs(distX),
+									distY: Math.abs((height / 2) + y - clientY),
+									orientation: distX < 0 ? 'RIGHT' : 'LEFT',
+									card: toString(fromInt(cardVal)),
+									cardVal,
+								};
+							}),
+							_.partial(_.minBy, ({ distY, distX }) => Math.sqrt(distY * distY + distX * distX)),
+						);
+
+						if (closest.distX > cardWidth || closest.distY > cardHeight) {
+							return null;
+						}
+
+						return closest;
+					}),
+				);
+
+				yield* DOM.s_bindDOM(s_selectedCard, (selectedCard) => (function*() {
+					const e_updatedHeld = _.pipeline(
+						closestCards,
+						_.partial(FRP.filter, (closest) => !!closest),
+						_.partial(FRP.fmap, (closest) => {
+							let past = false;
+							let first = true;
+							let wasFirst = false;
+							return _.pipeline(
+								held,
+								_.partial(_.partitionBy, (card) => {
+									if (past) {
+										return true;
+									}
+									if (card === closest.cardVal) {
+										past = true;
+										wasFirst = first;
+										return closest.orientation === 'LEFT';
+									}
+									first = false;
+									return false;
+								}),
+								(partitioned) => (
+									_.count(partitioned) > 1 ? partitioned : (
+										wasFirst ?
+										_.concat(_.vector(_.vector()), partitioned) :
+										_.concat(partitioned, _.vector(_.vector()))
+									)
+								),
+								(partitioned) => _.concat(
+									_.filter(card => card !== selectedCard, _.nth(partitioned, 0)),
+									_.vector(selectedCard),
+									_.filter(card => card !== selectedCard, _.nth(partitioned, 1)),
+								)
+							);
+						})
+					);
+					if (selectedCard) {
+						yield* DOM.e_emit('myHeld', FRP.fmap(updated => ManualChange(updated), e_updatedHeld));
+					}
+				})());
+				if (isTurn && !hasDrawn) {
+					const d_discard = yield* DOM.button({}, DOM.text('Take Discard'));
+					const d_deck = yield* DOM.button({}, DOM.text('Draw Deck'));
+					yield* requestOn(d_discard.onClick, API.TakeDiscard);
+					yield* requestOn(d_deck.onClick, API.DrawDeck);
+				} else if (!hasDrawn) {
+					const d_mayI = yield* DOM.button({}, DOM.text('May I'));
+					yield* requestOn(d_mayI.onClick, API.MayI);
+				}
+			})());
 		})());
-	})());
+		// })());
+	})()));
 })();
 
 const bodyAttrs = { className: 'container content' };
@@ -289,7 +445,9 @@ export const App = (function*() {
 		})),
 		_.partial(FRP.fmap, _.g('gameState'))
 	);
-	// yield* DOM.e_consume(_.log, e_gameState);
 	const s_gameState = yield* DOM.s_use(FRP.s_from(e_gameState, null));
-	yield* s_bindKeyedDOM(s_gameState, getCurrScreen, renderGameState);
+	yield* DOM.e_collectAndReduce('myHeld', reduceHeld, _.vector(), (function*() {
+		yield* DOM.e_emit('myHeld', FRP.fmap(state => UpdateGameState(state), e_gameState));
+		yield* s_bindKeyedDOM(s_gameState, getCurrScreen, renderGameState);
+	})());
 })();

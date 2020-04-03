@@ -35,6 +35,7 @@ export const setNumDecks = (state, numDecks) => (
 	_.assoc(state, 'numDecks', numDecks)
 );
 
+const HAND_SIZE = 11;
 export const startGame = (state) => {
 	const players = _.shuffle(_.get(state, 'players'));
 	const numDecks = _.get(state, 'numDecks');
@@ -46,7 +47,9 @@ export const startGame = (state) => {
 	const dealerId = 0;
 	const turnId = 1;
 	const mayIs = _.vector();
-	const playerCards = _.vec(_.partition(11, _.take(11 * numDecks, fullDeck)));
+	const playerCards = _.vec(_.partition(
+		HAND_SIZE, _.take(HAND_SIZE * numDecks, fullDeck)
+	));
 	const hands = _.mapValues(
 		(id, name) => _.m({
 			mayIs: 3,
@@ -54,8 +57,8 @@ export const startGame = (state) => {
 		}),
 		idLookup
 	);
-	const discard = _.list(_.nth(fullDeck, 11 * numDecks));
-	const deck = _.drop(11 * numDecks + 1, fullDeck);
+	const discard = _.list(_.nth(fullDeck, HAND_SIZE * numDecks));
+	const deck = _.drop(HAND_SIZE * numDecks + 1, fullDeck);
 	return _.merge(state, _.m({
 		started: true,
 		hasDrawn: false,

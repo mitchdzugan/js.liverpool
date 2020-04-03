@@ -19,7 +19,7 @@
     "socket.io-client": "^2.3.0"
   },
   "scripts": {
-    "build-watch": "parcel watch ./src/Client/index.html",
+    "build-watch": "NODE_ENV=development parcel watch ./src/Client/index.html",
     "start-watch": "NODE_ENV=development nodemon --exec babel-node src/Server/index.js",
     "dev": "concurrently --kill-others \"npm run start-watch\" \"npm run build-watch\"",
     "build-client": "parcel build ./src/Client/index.html",

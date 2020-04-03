@@ -7,6 +7,19 @@ $grey-dark: hsl(0, 0%, 49%);
 .pcard {
 		margin: 5px;
 		display: inline-block;
+		height: 45px;
+		img {
+				height: 100%;
+				&.selected {
+						filter: drop-shadow(rgb(122, 220, 220) 0px 0px 6px);
+				}
+				&.clickable {
+						cursor: pointer;
+						&:hover {
+								filter: drop-shadow(rgb(122, 170, 170) 0px 0px 6px);
+						}
+				}
+		}
 }
 
 body {

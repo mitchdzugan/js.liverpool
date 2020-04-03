@@ -25,7 +25,5 @@ DOM.attach('app', { postRequest, e_response }, App, () => {
 	containers.forEach(c => {
 		c._hasDragula = true;
 	});
-	dragula(containers, {
-		revertOnSpill: true
-	});
+	// dragula(containers, {revertOnSpill: true});
 });
