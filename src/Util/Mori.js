@@ -158,4 +158,8 @@ const extremeBy = (comp) => (f, v) => {
 _.minBy = extremeBy((a, b) => a < b);
 _.maxBy = extremeBy((a, b) => a > b);
 
+_.meach = (m, f) => _.each(m, (arg) => {
+	return f(_.nth(arg, 0), _.nth(arg, 1));
+});
+
 export default _;

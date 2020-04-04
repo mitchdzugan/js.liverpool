@@ -3,8 +3,8 @@ import mdo from './mdo.macro.js';
 import { fromInt, isJoker, isNoCard } from 'Card';
 
 export class Goal extends _.Enum {
-	static Set = new Goal();
-	static Run = new Goal();
+	static Set = new Goal("Goal.Set");
+	static Run = new Goal("Goal.Run");
 	static _ = this.closeEnum();
 };
 
@@ -116,6 +116,7 @@ export const validatePlay = (type, play) => {
 	return _.match({
 		[Goal.Set]: () => validateSetPlay(play),
 		[Goal.Run]: () => validateRunPlay(play),
+		[_.DEFAULT]: () => console.log('FUCK U!'),
 	})(type);
 };
 
@@ -141,7 +142,7 @@ export const setNumDecks = (state, numDecks) => (
 	_.assoc(state, 'numDecks', numDecks)
 );
 
-const HAND_SIZE = 21;
+const HAND_SIZE = 11;
 export const startGame = (state) => {
 	const players = _.shuffle(_.get(state, 'players'));
 	const numDecks = _.get(state, 'numDecks');
@@ -149,7 +150,7 @@ export const startGame = (state) => {
 	const idLookup = _.mkIdLookup(players);
 	const scores = _.mapValues(() => 0, idLookup);
 	const money = _.get(state, 'money', _.mapValues(() => -25, scores));
-	const handId = 1;
+	const handId = 0;
 	const dealerId = 0;
 	const turnId = 1;
 	const mayIs = _.vector();
@@ -159,7 +160,7 @@ export const startGame = (state) => {
 	const hands = _.mapValues(
 		(id, name) => _.m({
 			mayIs: 3,
-			held: _.nth(playerCards, id)
+			held: _.nth(playerCards, id),
 		}),
 		idLookup
 	);
@@ -251,18 +252,117 @@ export const drawDeck = (state, playerName) => {
 };
 
 export const play = (state, playerName, plays) => {
+	let usedCards = _.vector();
+	let hands = _.get(state, 'hands');
+
 	const players = _.get(state, 'players');
 	const playerCount = _.count(players);
 	const turnId = _.get(state, 'turnId');
-	const discard = _.get(state, 'discard');
-	const hands = _.get(state, 'hands');
-	const currHeld = _.getIn(hands, [playerName, 'held']);
-	const discarded = _.get(plays, 'discard');
-	const newHeld = _.remove(card => card === discarded, currHeld);
+	const currHand = _.get(hands, playerName);
+	const currHeld = _.get(currHand, 'held');
+	const heldSet = new Set(_.intoArray(currHeld));
+	const isDown = _.count(_.get(currHand, 'down', _.hashMap())) > 0;
+	const idLookup = _.get(state, 'idLookup');
+	const playerId = _.get(idLookup, playerName);
+
+	const discard = _.get(plays, 'discard');
+	const table = _.get(plays, 'table');
+	const down = _.get(plays, 'down');
+
+	const hasDiscard = !isNoCard(fromInt(discard));
+	const hasTable = _.count(table);
+	const hasDown = _.count(down);
+
+	if (turnId !== playerId) {
+		throw("Not your turn");
+	}
+	/*
+	if (isDown && hasDown) {
+		throw("Already Down");
+	}
+	if (!isDown && !hasDown && hasTable) {
+		throw("Cannot play on others until down");
+	}
+	*/
+
+	_.meach(table, (player, goals) => (
+		_.meach(goals, (type, piles) => (
+			_.each(
+				_.map((pileId, plays) => ({ pileId, plays }), _.range(), piles),
+				({ pileId, plays }) => {
+					const playL = _.nth(plays, 0);
+					const playR = _.nth(plays, 1);
+					const curr = _.getIn(hands, [player, 'down', type, pileId]);
+					const next = _.vec(_.concat(playL, curr, playR));
+					const isValid = validatePlay(type, next);
+					if (!isValid) {
+						throw("Invalid Play");
+					}
+					hands = _.assocIn(hands, [player, 'down', type, pileId], next);
+					usedCards = _.concat(playL, playR, usedCards);
+				}
+			)
+		))
+	));
+
+	if (hasDown) {
+		hands = _.assocIn(hands, [playerName, 'down'], down);
+	}
+	_.meach(down, (type, piles) => (
+		_.each(piles, (pile) => {
+			console.log({ type });
+			const isValid = validatePlay(type, pile);
+			console.log(type, pile);
+			if (!isValid) {
+				throw("Invalid Play");
+			}
+			usedCards = _.concat(pile, usedCards);
+		})
+	));
+	const currGoal = getGoal(state);
+	const hasEnoughSet = (
+		_.count(_.get(down, Goal.Set.toString())) === currGoal[Goal.Set]
+	);
+	const hasEnoughRun = (
+		_.count(_.get(down, Goal.Run.toString())) === currGoal[Goal.Run]
+	);
+
+	if (hasDown && !hasEnoughSet) {
+		throw("Not Enough Sets Played");
+	}
+	if (hasDown && !hasEnoughRun) {
+		throw("Not Enough Runs Played");
+	}
+
+	const hasDuplicates = _.pipeline(
+		usedCards,
+		_.partial(_.groupBy, _.identity),
+		_.keys,
+		_.count,
+		(uniqueCount) => uniqueCount < _.count(usedCards)
+	);
+	if (hasDuplicates) {
+		throw("Used Duplicate Cards In Play");
+	}
+	_.each(usedCards, (card) => {
+		if (!heldSet.has(card)) {
+			throw "Do Not Have Played Card";
+		}
+	});
+	if (_.count(usedCards) < _.count(currHeld) && !hasDiscard) {
+		throw "Must Play Discard Or Go Out";
+	}
+	usedCards = _.conj(usedCards, discard);
+
+	const usedSet = new Set(_.intoArray(usedCards));
+	const nextHeld = _.remove(card => usedSet.has(card), currHeld);
+	console.log({ usedSet, nextHeld, currHeld });
+
+	const discardPile = _.get(state, 'discard');
 	return _.merge(state, _.m({
 		hasDrawn: false,
-		discard: _.conj(discard, discarded),
+		discard: _.conj(discardPile, discard),
 		turnId: (turnId + 1) % playerCount,
-		hands: _.assocIn(hands, [playerName, 'held'], newHeld)
+		hands: _.assocIn(hands, [playerName, 'held'], nextHeld),
 	}));
 };

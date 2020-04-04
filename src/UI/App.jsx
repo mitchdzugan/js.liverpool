@@ -180,10 +180,6 @@ const InGame = () => {
 	const hands = _.get(state, 'hands');
 	const dealerId = _.get(state, 'dealerId');
 	const turnId = _.get(state, 'turnId');
-  useEffect(
-    () => setViewTable(false),
-    [turnId]
-  );
 	const discard = _.get(state, 'discard');
 	const s = i => toString(fromInt(i));
 	const player = _.get(state, 'player');
@@ -212,6 +208,8 @@ const InGame = () => {
     },
     [_.getIn(hands, [player, 'held'])]
   );
+  const myDown = _.getIn(hands, [player, 'down']);
+  const amIDown = myDown && _.count(myDown) > 0;
   const isMayI = _.pipeline(
     _.get(state, 'mayIs'),
     _.partial(_.reduce, (has, id) => has || id === playerId, false)
@@ -341,7 +339,14 @@ const InGame = () => {
     isPicking && postRequest(API.TakeDiscard(roomId))
   );
   const [plays, setPlays] = useState(_.hashMap());
-  const inPlay = _.reduceKV(
+  useEffect(
+    () => {
+      setViewTable(false);
+      setPlays(_.hashMap());
+    },
+    [turnId]
+  );
+  const inPlay_raw = _.reduceKV(
     (inPlay, k, v) => _.match({
       discard: () => _.assoc(inPlay, v, true),
       down: () => _.reduceKV(
@@ -360,11 +365,33 @@ const InGame = () => {
 				),
 				inPlay,
 				v
-			)
+			),
+      table: () => _.reduceKV(
+        (inPlay, k1, v) => _.reduceKV(
+          (inPlay, k2, v) => _.reduceKV(
+            (inPlay, k3, v) => _.reduce(
+              (inPlay, v) => _.reduce(
+                (inPlay, v) => _.assoc(inPlay, v, true),
+                inPlay,
+                v
+              ),
+              inPlay,
+              v
+            ),
+            inPlay,
+            v
+          ),
+          inPlay,
+          v
+        ),
+        inPlay,
+        v
+      )
     })(k),
     _.hashMap(),
     plays,
   );
+  const inPlay = _.reduceKV((agg, k, v) => k < 0 ? agg : _.assoc(agg, k, v), _.hashMap(), inPlay_raw);
   const className = card => (
     `${!hasSelected ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
   );
@@ -455,6 +482,98 @@ const InGame = () => {
               className += used ? " used" : "";
               return <div className={className}/>;
             };
+            const down = _.getIn(hands, [player, 'down']);
+            const downPiles = _.pipeline(
+              _.keys(down),
+              _.partial(_.mapcat, (type) => {
+                const mkId = (pileId) => (
+                  `pile.${type}.${pileId}`
+                );
+                const typePiles = _.get(down, type);
+                return _.map(
+                  (pile, pileId) => {
+                    const currTypePlays = _.getIn(
+                      plays,
+                      ['table', player, type],
+                      _.pipeline(
+                        _.range(getGoal(state)[type]),
+                        _.partial(_.map, () => _.vector(_.vector(), _.vector())),
+                        _.vec
+                      )
+                    );
+                    const currL = _.getIn(currTypePlays, [pileId, 0], _.vector());
+                    const currR = _.getIn(currTypePlays, [pileId, 1], _.vector());
+                    const fullPile = _.vec(_.concat(currL, pile, currR));
+                    const guid = `pile.${type}.${pileId}`;
+                    const renderExtra = (ind) => {
+                      if (ind >= _.count(fullPile)) {
+                        return null;
+                      }
+                      const card = _.nth(fullPile, ind);
+                      return (
+										    <div className="pcard">
+											    <img src={toSrc(fromInt(card))} />
+                          {renderExtra(ind + 1)}
+										    </div>
+                      );
+                    };
+                    const extraWidth = `${35 + 15 * _.count(fullPile)}px`;
+										const onPile = (e) => {
+											const { clientX } = e;
+											const el = document.getElementById(guid);
+											if (!el) {
+												return;
+											}
+											e.nativeEvent.ignore = true;
+											const { x, width } = el.getBoundingClientRect();
+											const orientation = 2 * (clientX - x) > width ? 'RIGHT' : 'LEFT';
+											const oId = _.match({
+												RIGHT: () => 1,
+												LEFT: () => 0,
+											})(orientation);
+											const curr = _.match({
+                        RIGHT: () => currR,
+                        LEFT: () => currL,
+                      })(orientation);
+											if (hasSelected) {
+												const getArgs = v => _.match({
+													RIGHT: () => [v, _.vector(selectedCard)],
+													LEFT: () => [_.vector(selectedCard), v],
+												})(orientation);
+												const newPile = _.vec(_.concat(...getArgs(fullPile)));
+												if (validatePlay(type, newPile)) {
+													setPlays(_.assocIn(
+														plays,
+														['table', player, type],
+														_.assocIn(
+															currTypePlays,
+															[pileId, oId],
+															_.vec(_.concat(...getArgs(curr)))
+														)
+													));
+												}
+												setSelectedCard(null);
+											}
+										};
+
+                    return (
+											<div
+												key={guid}
+												id={guid}
+												onClick={onPile}
+												style={{ width: extraWidth }}
+												className="extra-cards"
+											>
+												{renderExtra(0)}
+											</div>
+                    );
+                  },
+                  typePiles,
+                  _.range()
+                );
+              }),
+              _.intoArray
+            );
             return (
               <div key={player} className={pClassName} >
                 <div className="text">{player}</div>
@@ -468,6 +587,7 @@ const InGame = () => {
                     </div>
 									</div>
 								</div>
+                {downPiles}
               </div>
             );
           })}
@@ -527,8 +647,6 @@ const InGame = () => {
                 transform = 'translateY(190px)';
               }
             }
-            // TODO remove when not testing
-            transform = 'translateY(0)';
             const renderGoal = (type) => (id) => {
               const label = _.match({
                 [Goal.Set]: () => 'Set',
@@ -564,10 +682,19 @@ const InGame = () => {
                         setSelectedPlay([]);
                       } else {
                         if (card > -1) {
-                          setSelectedPlay([
-                            card,
-                            () => setPlays(_.assocIn(plays, ['down', type, id, targetId], -1))
-                          ]);
+                          if (targetId === req - 1 && _.count(curr) > req) {
+                            const card = _.last(curr);
+                            const filtered = _.vec(_.filter(c => c !== card, curr));
+                            const unPlay = () => (
+                              setPlays(_.assocIn(plays, ['down', type, id], filtered))
+                            );
+                            setSelectedPlay([card, unPlay]);
+                          } else {
+                            const unPlay = () => (
+                              setPlays(_.assocIn(plays, ['down', type, id, targetId], -1))
+                            );
+														setSelectedPlay([card, () => unPlay]);
+                          }
                         }
                       }
 								      return;
@@ -592,10 +719,15 @@ const InGame = () => {
                         return;
                       }
                     }
+                    const currTypePiles = _.getIn(
+                      plays,
+                      ['down', type],
+                      _.vec(_.map(() => _.vec(_.map(() => -1, _.range(req))), _.range(goal[type])))
+                    );
 							      setPlays(_.assocIn(
                       plays,
-                      ['down', type, id],
-                      _.assoc(curr, targetId, selectedCard)
+                      ['down', type],
+                      _.assocIn(currTypePiles, [id, targetId], selectedCard)
                     ));
 							      setSelectedCard(null);
                   };
@@ -644,7 +776,7 @@ const InGame = () => {
 									  <span
                       className="cancel"
                       onClick={() => (
-							          setPlays(_.updateIn(plays, ['down', type], _.curry(_.dissoc, id)))
+							          setPlays(_.assocIn(plays, ['down', type, id], _.vec(_.map(() => -1, _.range(req)))))
                       )}
                     >
                       ✗
@@ -658,13 +790,66 @@ const InGame = () => {
               ..._.intoArray(_.range(goal[Goal.Set])).map(renderGoal(Goal.Set)),
               ..._.intoArray(_.range(goal[Goal.Run])).map(renderGoal(Goal.Run))
             ];
+            const play = () => {
+              const modGoals = (goals) => _.m({
+                [Goal.Set.toString()]: _.get(goals, Goal.Set),
+                [Goal.Run.toString()]: _.get(goals, Goal.Run),
+              });
+              let useDown = !!_.get(plays, 'down');
+              const down = _.get(plays, 'down');
+	            _.meach(down, (type, piles) => (
+		            _.each(piles, (pile) => {
+			            useDown = useDown && validatePlay(type, pile);
+		            })
+	            ));
+              const sendPlays = useDown ? _.update(plays, 'down', modGoals) : (
+                _.dissoc(plays, 'down')
+              );
+              postRequest(API.Play(roomId, sendPlays));
+            };
+            const discard = _.get(plays, 'discard');
+            const hasNonDiscard = _.count(inPlay) > 1 || (
+              !_.get(inPlay, discard) && _.count(inPlay) === 1
+            );
+            const needsDown = hasNonDiscard && !amIDown;
+            const hasDiscard = !!discard || discard === 0;
+            const allInPlay = _.count(inPlay) === _.count(held);
+            const discardOK = (!allInPlay && hasDiscard) || (allInPlay && !hasDiscard);
+            const hasRawDown = _.count(_.get(plays, 'down')) > 0;
+            const hasDown = hasRawDown && _.reduceKV(
+              (has, type, piles) => has || _.reduce(
+                (has, pile) => has || _.reduce(
+                  (has, card) => has || card > -1, has, pile
+                ),
+                has,
+                piles
+              ),
+              false,
+              _.get(plays, 'down')
+            );
+            const downOK = !needsDown || (
+              hasDown && _.reduceKV(
+                (ok, type, piles) => ok && (
+                  _.reduce(
+                    (ok, pile) => ok && validatePlay(type, pile), ok, piles
+                  )
+                ),
+                true,
+                _.get(plays, 'down')
+              )
+            );
+            const canPlay = discardOK && downOK;
 						return (
 							<div
 								style={{ transform }}
 								className="play-board"
 							>
 								<div className="play-controls" >
-									<button onClick={onCancel} className="button is-danger is-small">
+									<button
+                    disabled={_.count(inPlay) === 0}
+                    onClick={onCancel}
+                    className="button is-danger is-small"
+                  >
 										Cancel
 									</button>
 									<div className="discard-space">
@@ -673,20 +858,28 @@ const InGame = () => {
 										</div>
 										<span>Discard</span>
 									</div>
-									<button className="button is-danger is-small">
-										Finish
+									<button
+                    disabled={!canPlay}
+                    onClick={play}
+                    className="button is-danger is-small"
+                   >
+										End Turn
 									</button>
 								</div>
-								<div className="play-closer is-size-7" >
-									<div />
-									<div
-										onClick={() => setViewTable(!viewTable)}
-									>
-										View {viewTable ? 'Plays' : 'Table'}
-									</div>
-									<div />
-								</div>
-                {goals}
+                {(!amIDown && (
+                  <>
+								    <div className="play-closer is-size-7" >
+									    <div />
+									    <div
+										    onClick={() => setViewTable(!viewTable)}
+									    >
+										    View {viewTable ? 'Plays' : 'Table'}
+									    </div>
+									    <div />
+								    </div>
+                    {goals}
+                  </>
+                ))}
 								<div style={{ height: `${myHandHeight}px` }} />
 							</div>
 						);
@@ -705,7 +898,9 @@ const ScreenComponent = (state) => (
   })(getCurrScreen(state))
 );
 
+let lastError = null;
 export const App = ({ e_response, postRequest }) => {
+  const [error, setError] = useState(null);
   const [state, setState] = useState(null);
 	const e_gameState = _.pipeline(
 		e_response,
@@ -715,13 +910,36 @@ export const App = ({ e_response, postRequest }) => {
 		})),
 		_.partial(FRP.fmap, _.g('gameState'))
 	);
+	const e_error = _.pipeline(
+		e_response,
+		_.partial(FRP.filter, _.match({
+			[API.Response.Error]: () => true,
+			[_.DEFAULT]: () => false
+		})),
+		_.partial(FRP.fmap, _.g('error'))
+	);
   useEffect(() => (FRP.consume(setState, e_gameState)), []);
+  useEffect(
+    () => FRP.consume(
+      (e) => {
+        setError(e);
+        setTimeout(() => setError(null), 5000);
+      },
+      e_error
+    ),
+    []
+  );
   const CurrScreen = ScreenComponent(state);
   const context = { postRequest, state };
+  lastError = error || lastError;
   return (
     <C.Provider value={context} >
       <div className="container content" >
 				<CurrScreen />
+      </div>
+      <div className={`notification is-danger${error ? '' : ' hidden'}`} >
+        <button className="delete" onClick={() => setError(null)} />
+        {error || lastError}
       </div>
     </C.Provider>
   );
