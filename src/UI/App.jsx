@@ -292,7 +292,9 @@ const InGame = () => {
   const unMayI = () => (
     postRequest(API.UnMayI(roomId))
   );
-  const isSel = (card) => card === selectedCard;
+  const isSel = (card) => (
+    card === selectedCard || card === selectedPlay
+  );
   const onCard = (card) => (e) => {
     if (!hasSelected) {
       e.nativeEvent.ignore = true;
@@ -399,7 +401,8 @@ const InGame = () => {
     _.reduce((agg, card) => `${agg}-${card}`, "", held),
     (soFar) => `${soFar}, ${card}`
   );
-  const [isTable, setIsTable] = useState(true);
+  const [_isTable, setIsTable] = useState(true);
+  const isTable = _isTable && !_.get(state, 'isGameOver');
   const mkButtonClass = (isBold) => (
     `button is-small${isBold ? ' has-text-weight-bold' : ''}`
   );
@@ -465,25 +468,50 @@ const InGame = () => {
   );
   const inPlay = _.reduceKV((agg, k, v) => k < 0 ? agg : _.assoc(agg, k, v), _.hashMap(), inPlay_raw);
   const className = card => (
-    `${!hasSelected ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
+    `${!hasSelected ? 'clickable' : ''}${isSel(card) ? ' selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
   );
   const deal = () => (
     postRequest(API.Deal(roomId))
   );
+
+  const scores = _.get(state, 'scores');
+  const money = _.get(state, 'money');
+  const leader = _.get(state, 'isGameOver') && _.reduceKV(
+    ({ max, leader }, player, money) => money <= max ? { max, leader } : {
+      max: money,
+      leader: player
+    },
+    { max: 0 },
+    money
+  ).leader;
+  const renderCashCell = (player) => {
+    const cash = _.get(money, player);
+    const p = cash === 0 ? '' : (cash > 0 ? '+' : '-');
+    const i = Math.floor(Math.abs(cash) / 100);
+    const d_ = Math.abs(cash) % 100;
+    const d = d_ < 10 ? `0${d_}` : `${d_}`;
+    return (
+      <td key={`cash.${player}`}>
+        ${p}{i}.{d}
+      </td>
+    );
+  };
 
   return (
     <>
 			<div className="in-game">
 				<div className={`main-controls${isTable ? ' hide-controls' : ''}`}>
           <div className="field has-addons" >
-            <p className="control">
-              <button
-                onClick={() => setIsTable(true)}
-                className={mkButtonClass(isTable)}
-              >
-                Table
-              </button>
-            </p>
+            {!_.get(state, 'isGameOver') && (
+              <p className="control">
+                <button
+                  onClick={() => setIsTable(true)}
+                  className={mkButtonClass(isTable)}
+                >
+                  Table
+                </button>
+              </p>
+            )}
             <p className="control">
               <button
                 onClick={() => setIsTable(false)}
@@ -522,22 +550,45 @@ const InGame = () => {
           <div className="score-container" >
 						<table className="table">
 							<thead>
-								<th>Hand</th>
-								<th>Mitch</th>
-								<th>Mom</th>
-								<th>Dad</th>
+								<tr>
+									<th>Hand</th>
+                  {_.intoArray(players).map(player => (
+                    <th key={player} >
+                      {player}
+                      {leader === player && (
+                        <i className="fas fa-crown"></i>
+                      )}
+                    </th>
+                  ))}
+                </tr>
 							</thead>
 							<tbody>
-								<tr><th>1</th><td>10</td><td>5</td><td>0</td></tr>
-								<tr><th>2</th><td>10</td><td>5</td><td>0</td></tr>
-								<tr><th>3</th><td>10</td><td>5</td><td>0</td></tr>
-								<tr><th>4</th><td></td><td></td><td></td></tr>
-								<tr><th>5</th><td></td><td></td><td></td></tr>
-								<tr><th>6</th><td></td><td></td><td></td></tr>
-								<tr><th>7</th><td></td><td></td><td></td></tr>
+                {_.intoArray(_.range(7)).map(handId => (
+                  <tr key={handId}>
+                    <th>{handId + 1}</th>
+                    {_.intoArray(players).map(player => (
+                      _.count(_.get(scores, player)) <= handId ? <td /> : (
+                        <td key={`${handId}.${player}`} >
+                          {_.getIn(scores, [player, handId])}
+                        </td>
+                      )
+                    ))}
+                  </tr>
+                ))}
+								<tr key="total" >
+                  <th>Total</th>
+                  {_.intoArray(players).map(player => (
+                    <td key={`Total.${player}`} >
+                      {_.reduce((a, c) => a + c, 0, _.get(scores, player))}
+                    </td>
+                  ))}
+                </tr>
 							</tbody>
 							<tfoot>
-								<th>Cash</th><td>+0.75</td><td>-0.25</td><td>-0.5</td>
+								<tr>
+									<th>Cash</th>
+                  {_.intoArray(players).map(renderCashCell)}
+                </tr>
 							</tfoot>
 						</table>
           </div>
@@ -787,7 +838,7 @@ const InGame = () => {
                             const unPlay = () => (
                               setPlays(_.assocIn(plays, ['down', type, id, targetId], -1))
                             );
-														setSelectedPlay([card, () => unPlay]);
+														setSelectedPlay([card, unPlay]);
                           }
                         }
                       }

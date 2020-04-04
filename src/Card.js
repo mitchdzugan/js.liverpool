@@ -78,3 +78,12 @@ export const toSrc = _.match({
 		Clubs: ({ n }) => `/cards/${n}.3.png`,
 	}],
 });
+
+export const toPoints = _.match({
+	[CardType.NoCard]: () => 0,
+	[CardType.Joker]: () => 50,
+	[CardType.Suited]: ['n', {
+		[0]: () => 20,
+		[_.DEFAULT]: ({ n }) => n < 7 ? 5 : 10
+	}]
+});

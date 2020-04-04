@@ -10,6 +10,16 @@ $grey-dark: hsl(0, 0%, 49%);
 		}
 }
 
+th {
+		position: relative;
+		.fa-crown {
+				position: absolute;
+				left: -5px;
+				top: 0;
+				transform: rotate(-30deg),
+		}
+}
+
 .dealer-chip {
 		margin-right: 10px;
 		color: #192419;

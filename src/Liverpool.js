@@ -1,6 +1,6 @@
 import _ from 'Util/Mori';
 import mdo from './mdo.macro.js';
-import { fromInt, isJoker, isNoCard } from 'Card';
+import { fromInt, isJoker, isNoCard, toPoints } from 'Card';
 
 export class Goal extends _.Enum {
 	static Set = new Goal("Goal.Set");
@@ -116,7 +116,6 @@ export const validatePlay = (type, play) => {
 	return _.match({
 		[Goal.Set]: () => validateSetPlay(play),
 		[Goal.Run]: () => validateRunPlay(play),
-		[_.DEFAULT]: () => console.log('FUCK U!'),
 	})(type);
 };
 
@@ -155,8 +154,8 @@ export const startGame = (state) => {
 	const numDecks = _.get(state, 'numDecks');
 	const fullDeck = _.shuffle(_.range(numDecks * 54));
 	const idLookup = _.mkIdLookup(players);
-	const scores = _.mapValues(() => 0, idLookup);
-	const money = _.get(state, 'money', _.mapValues(() => -25, scores));
+	const scores = _.mapValues(() => _.vector(), idLookup);
+	const money = _.get(state, 'money', _.mapValues(() => 0, scores));
 	const handId = 0;
 	const dealerId = 0;
 	const turnId = 1;
@@ -168,14 +167,6 @@ export const startGame = (state) => {
 		(id, name) => _.m({
 			mayIs: 3,
 			held: _.nth(playerCards, id),
-			down: _.m({
-				/*
-				[Goal.Set]: _.vector(
-					_.vector(5, 18, 31, 59),
-					_.vector(8, 8, 8, 8, 8),
-				)
-				*/
-			}),
 		}),
 		idLookup
 	);
@@ -379,21 +370,84 @@ export const play = (state, playerName, plays) => {
 	usedCards = _.conj(usedCards, discard);
 
 	const usedSet = new Set(_.intoArray(usedCards));
-	const nextHeld = _.vec(_.remove(card => usedSet.has(card), currHeld));
+	// const nextHeld = _.vec(_.remove(card => usedSet.has(card), currHeld));
+	const nextHeld = _.vector(); // TODO remove
+	hands = _.assocIn(hands, [playerName, 'held'], nextHeld);
 
 	const discardPile = _.get(state, 'discard');
-	return _.merge(state, _.m({
+	const newState = _.merge(state, _.m({
 		hasDrawn: false,
 		discard: _.conj(discardPile, discard),
 		turnId: (turnId + 1) % playerCount,
-		hands: _.assocIn(hands, [playerName, 'held'], nextHeld),
+		hands,
 		...(_.count(nextHeld) ? {} : {
 			turnId,
 			dealerId: (dealerId + 1) % playerCount,
 			handWinner: playerName,
 			hands: _.assocIn(hands, [playerName, 'held'], _.vector()),
+			scores: _.reduceKV(
+				(scores, player, hand) => (
+					_.update(scores, player, _.curry(_.conj, _.reduce(
+						(heldPoints, held) => heldPoints + toPoints(fromInt(held)),
+						0,
+						_.get(hand, 'held')
+					)))
+				),
+				_.get(state, 'scores'),
+				hands,
+			),
+			money: (() => {
+				const curr = _.get(state, 'money');
+				const buyIn = _.match({
+					[0]: () => 25,
+					[_.DEFAULT]: () => 10,
+				})(_.get(state, 'handId'));
+				const spent = _.reduceKV(
+					(spent, player, hand) => (
+						_.assoc(spent, player, buyIn + (5 * (3 - _.get(hand, 'mayIs'))))
+					),
+					_.hashMap(),
+					hands
+				);
+				const potsize = _.reduceKV((pot, _, contrib) => pot + contrib, 0, spent);
+				const getNext = (player) => (
+					_.get(curr, player) + (player === playerName ? potsize : 0) - _.get(spent, player)
+				);
+				return _.reduceKV((money, player) => _.assoc(money, player, getNext(player)), curr, curr);
+			})(),
 		})
 	}));
+	const gameOver = !_.count(nextHeld) && _.get(state, 'handId') === 6;
+	return !gameOver ? newState : (() => {
+		const scores = _.get(newState, 'scores');
+		const money = _.get(newState, 'money');
+		const toScore = (scores) => (
+			_.reduce((a, c) => a + c, 0, scores)
+		);
+		const minScore = toScore(_.minBy(toScore, _.vals(scores)));
+		let totalOwed = 0;
+		const getFinalCash = (player) => {
+			const curr = _.get(money, player);
+			const score = toScore(_.get(scores, player));
+			const owed = Math.floor((((score - minScore) / 4) / 5) + 0.5) * 5;
+			totalOwed += owed;
+			return curr - owed;
+		};
+		const penultCash = _.reduce(
+			(penult, player) => _.assoc(
+				penult, player, getFinalCash(player)
+			),
+			_.hashMap(),
+			players
+		);
+		const finalCash = _.update(penultCash, playerName, curr => curr + totalOwed);
+		return _.pipeline(
+			newState,
+			_.curry(_.assoc, 'isGameOver', true),
+			_.curry(_.assoc, 'money', finalCash),
+			_.curry(_.dissoc, 'handWinner')
+		);
+	})();
 };
 
 
@@ -414,8 +468,6 @@ export const deal = (state, playerName) => {
 
 	const numDecks = _.get(state, 'numDecks');
 	const fullDeck = _.shuffle(_.range(numDecks * 54));
-	const scores = _.mapValues(() => 0, idLookup);
-	const money = _.get(state, 'money', _.mapValues(() => -25, scores));
 	const handId = _.get(state, 'handId') + 1;
 	const turnId = (dealerId + 1) % playerCount;
 	const mayIs = _.vector();
@@ -426,14 +478,6 @@ export const deal = (state, playerName) => {
 		(id, name) => _.m({
 			mayIs: 3,
 			held: _.nth(playerCards, id),
-			down: _.m({
-				/*
-				[Goal.Set]: _.vector(
-					_.vector(5, 18, 31, 59),
-					_.vector(8, 8, 8, 8, 8),
-				)
-				*/
-			}),
 		}),
 		idLookup
 	);
