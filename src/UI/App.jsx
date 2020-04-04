@@ -701,6 +701,14 @@ const InGame = () => {
 						const onDiscard = (e) => {
 							e.nativeEvent.ignore = true;
 							if (!hasSelected) {
+						    const myDiscard = _.get(plays, 'discard');
+                const hasDiscard = !!myDiscard || myDiscard === 0;
+                if (hasDiscard) {
+                  setSelectedPlay([
+                    myDiscard,
+                    () => setPlays(_.dissoc(plays, 'discard'))
+                  ]);
+                }
 								return;
 							}
 							setPlays(_.assoc(plays, 'discard', selectedCard));
@@ -924,7 +932,10 @@ const InGame = () => {
 									</button>
 									<div className="discard-space">
 										<div onClick={onDiscard} className="pcard">
-											<img src={discardSrc} />
+											<img
+                        className={selectedPlay === myDiscard ? 'selected' : ''}
+                        src={discardSrc}
+                      />
 										</div>
 										<span>Discard</span>
 									</div>
