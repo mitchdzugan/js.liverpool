@@ -4,7 +4,6 @@ import DOM from 'gen-impulse/DOM';
 import FRP from 'gen-impulse/FRP';
 import { App } from 'UI/App.jsx';
 import SocketIO from 'socket.io-client';
-import dragula from 'dragula';
 import _ from 'Util/Mori';
 
 const socket = SocketIO("");

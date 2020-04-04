@@ -4,6 +4,7 @@ import * as API from 'API';
 import { toString, toSrc, fromInt } from 'Card';
 import { Goal, getGoal, validatePlay } from 'Liverpool';
 import _ from 'Util/Mori';
+import copy from 'clipboard-copy';
 
 const C = React.createContext();
 const {
@@ -114,19 +115,64 @@ const WaitingStart = () => {
     postRequest(API.ConfigureRoom(roomId, numDecks + change))
   );
   return (
-    <>
-			<div>Room ID: {roomId}</div>
-      <div>Players</div>
-      <ul>
-        {_.intoArray(players).map(player => <li key={player} >{player}</li>)}
-      </ul>
-      <div>
-        <div>Number of decks: {numDecks}</div>
-        <button onClick={modDecks(-1)} disabled={numDecks === 1} >↓</button>
-        <button onClick={modDecks(1)} >↑</button>
+    <div className="card waiting-room">
+      <div className="card-header">
+        <div className="tags has-addons are-medium" >
+          <span className="tag is-success" >Room ID</span>
+          <span className="tag is-info has-text-weight-bold" >{roomId}</span>
+          <span onClick={() => copy(roomId)} className="tag l0nk is-success" >
+            Copy
+          </span>
+        </div>
       </div>
-      <button onClick={start} disabled={!canStart}>Start Game!</button>
-    </>
+      <div className="card-content" >
+        <div className="content" >
+          <table className="table is-bordered">
+            <thead><tr><th>Players In Game</th></tr></thead>
+            <tbody>
+              {_.intoArray(players).map(player => (
+                <tr key={player} >
+                  <td>{player}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="set-decks">
+            <div className="field has-addons" >
+              <p className="control">
+                <a className="button is-static">Decks</a>
+              </p>
+              <p className="control">
+                <a className="button is-static">{numDecks}</a>
+              </p>
+              <p className="control">
+                <a
+                  className="button"
+                  disabled={numDecks === 1}
+                  onClick={modDecks(-1)}
+                >
+                  <i className="fas fa-arrow-circle-down" />
+                </a>
+              </p>
+              <p className="control">
+                <a
+                  disabled={numDecks === 4}
+                  className="button"
+                  onClick={modDecks(1)}
+                >
+                  <i className="fas fa-arrow-circle-up" />
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="card-footer">
+        <button className="card-footer-item" onClick={start} disabled={!canStart}>
+          Start Game!
+        </button>
+      </div>
+    </div>
   );
 };
 
