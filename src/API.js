@@ -11,6 +11,7 @@ export class Request extends _.Enum {
 	static DrawDeck = new Request('Request.DrawDeck');
 	static Play = new Request('Request.Play');
 	static Deal = new Request('Request.Deal');
+	static Ping = new Request('Request.Ping');
 	static _ = this.closeEnum();
 }
 export const CreateRoom = (name) => (
@@ -42,6 +43,9 @@ export const Play = (roomId, plays) => (
 );
 export const Deal = (roomId) => (
 	_.mk(Request.Deal, { roomId })
+);
+export const Ping = (roomId) => (
+	_.mk(Request.Ping, { roomId })
 );
 
 export class Response extends _.Enum {

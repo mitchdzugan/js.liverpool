@@ -108,6 +108,16 @@ const NoRoom = () => {
 const WaitingStart = () => {
   const { state, postRequest } = useContext(C);
   const roomId = _.get(state, 'roomId');
+  useEffect(
+    () => {
+      const intervalId = setInterval(
+        () => postRequest(API.Ping(roomId)),
+        10000
+      );
+      return () => clearInterval(intervalId);
+    },
+    []
+  );
   const players = _.get(state, 'players');
   const numDecks = _.get(state, 'numDecks');
   const numPlayers = _.count(_.get(state, 'players'));
@@ -243,6 +253,16 @@ const InGame = () => {
   );
   const [viewTable, setViewTable] = useState(false);
   const roomId = _.get(state, 'roomId');
+  useEffect(
+    () => {
+      const intervalId = setInterval(
+        () => postRequest(API.Ping(roomId)),
+        10000
+      );
+      return () => clearInterval(intervalId);
+    },
+    []
+  );
   const handWinner = _.get(state, 'handWinner');
   const isHandOver = !!handWinner;
   const players = _.get(state, 'players');

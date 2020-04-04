@@ -50,13 +50,16 @@ const getRoomId = () => {
 	return games[roomId] ? getRoomId() : roomId;
 };
 
-const broadcastGameState = (roomId) => {
+const broadcastGameState = (roomId, only = null) => {
 	const game = games[roomId];
 	if (!game) {
 		return;
 	}
 	const { players, state } = game;
 	Object.entries(players).forEach(([player, socket]) => {
+		if (!!only && only !== player) {
+			return;
+		}
 		const fixHand = (hands, name, hand) => (
 			_.assoc(hands, name, _.pipeline(
 				hand,
@@ -164,6 +167,9 @@ io.on('connection', (socket) => {
 						games[roomId].state, G.playerName
 					);
 					broadcastGameState(roomId);
+				},
+				[API.Request.Ping]: ({ roomId }) => {
+					broadcastGameState(roomId, G.playerName);
 				},
 			})(request);
 		}
