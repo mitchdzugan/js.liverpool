@@ -74,8 +74,6 @@ const broadcastGameState = (roomId) => {
 			_.curry(_.assoc, 'player', player)
 		);
 		const response = API.GameState(roomId, filteredState);
-		console.log('...');
-		console.log(response);
 		socket.emit('API', _.encode(response));
 	});
 };
@@ -158,6 +156,12 @@ io.on('connection', (socket) => {
 				[API.Request.Play]: ({ roomId, plays }) => {
 					games[roomId].state = Liverpool.play(
 						games[roomId].state, G.playerName, plays
+					);
+					broadcastGameState(roomId);
+				},
+				[API.Request.Deal]: ({ roomId }) => {
+					games[roomId].state = Liverpool.deal(
+						games[roomId].state, G.playerName
 					);
 					broadcastGameState(roomId);
 				},

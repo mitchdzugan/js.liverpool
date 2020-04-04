@@ -26,9 +26,13 @@ const getCurrScreen = (state) => {
 	return _.get(state, 'started') ? Screen.InGame : Screen.WaitingStart;
 };
 
+const isServer = () => (
+  !(typeof window != 'undefined' && window.document)
+);
+
 const NoRoom = () => {
   const [name, setName] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [roomId, setRoomId] = useState(isServer() ? '' : window.location.hash.substr(1));
   const { postRequest } = useContext(C);
   const cardLoop = (i) => !i ? null : (
     <div className="card-loop" >
@@ -182,7 +186,8 @@ const InGame = () => {
   const [[selectedPlay, unPlay], setSelectedPlay] = useState([]);
   const hasSelected = selectedCard || selectedCard === 0;
   const hasSelectedPlay = selectedPlay || selectedPlay === 0;
-  const [myHandHeight, setMyHandHeight] = useState("0px");
+  const [myHandHeight, setMyHandHeight] = useState(0);
+  const [closedBoardOffset, setClosedBoardOffset] = useState(0);
   useEffect(
     () => {
       const f = (e) => setTimeout(
@@ -213,6 +218,17 @@ const InGame = () => {
           const height = myHandEl.clientHeight;
           if (myHandHeight !== height) {
             setMyHandHeight(height);
+          }
+
+          const playBoardEl = document.getElementById('play-board');
+          const playBoardTopEl = document.getElementById('play-board-top');
+
+          if (!playBoardEl || !playBoardTopEl) {
+            return;
+          }
+          const offset = playBoardEl.clientHeight - playBoardTopEl.clientHeight - myHandEl.clientHeight - 12;
+          if (offset !== closedBoardOffset) {
+            setClosedBoardOffset(offset);
           }
         },
         0
@@ -451,6 +467,9 @@ const InGame = () => {
   const className = card => (
     `${!hasSelected ? 'clickable' : ''}${isSel(card) ? 'selected' : ''}${_.get(inPlay, card) ? ' in-play' : ''}`
   );
+  const deal = () => (
+    postRequest(API.Deal(roomId))
+  );
 
   return (
     <>
@@ -580,14 +599,12 @@ const InGame = () => {
 										const onPile = (e) => {
 											const { clientX } = e;
 											const el = document.getElementById(guid);
-                      console.log('checking...');
 											if (!el || !isMyTurn || !hasDrawn) {
 												return;
 											}
 											e.nativeEvent.ignore = true;
 											const { x, width } = el.getBoundingClientRect();
 											const orientation = 2 * (clientX - x) > width ? 'RIGHT' : 'LEFT';
-                      console.log({ x, width, clientX, orientation });
 											const oId = _.match({
 												RIGHT: () => 1,
 												LEFT: () => 0,
@@ -602,7 +619,6 @@ const InGame = () => {
 													LEFT: () => [_.vector(selectedCard), v],
 												})(orientation);
 												const newPile = _.vec(_.concat(...getArgs(fullPile)));
-                        _.log({ newPile, fullPile, currR, currL });
 												if (validatePlay(type, newPile)) {
 													setPlays(_.assocIn(
 														plays,
@@ -722,7 +738,7 @@ const InGame = () => {
               if (!viewTable) {
                 transform = 'translateY(0)';
               } else {
-                transform = 'translateY(190px)';
+                transform = `translateY(${closedBoardOffset}px)`;
               }
             }
             const renderGoal = (type) => (id) => {
@@ -919,48 +935,51 @@ const InGame = () => {
             const canPlay = discardOK && downOK;
 						return (
 							<div
+                id="play-board"
 								style={{ transform }}
 								className="play-board"
 							>
-								<div className="play-controls" >
-									<button
-                    disabled={_.count(inPlay) === 0}
-                    onClick={onCancel}
-                    className="button is-danger is-small"
-                  >
-										Cancel
-									</button>
-									<div className="discard-space">
-										<div onClick={onDiscard} className="pcard">
-											<img
-                        className={selectedPlay === myDiscard ? 'selected' : ''}
-                        src={discardSrc}
-                      />
+                <div id="play-board-top" >
+									<div className="play-controls" >
+										<button
+											disabled={_.count(inPlay) === 0}
+											onClick={onCancel}
+											className="button is-danger is-small"
+										>
+											Cancel
+										</button>
+										<div className="discard-space">
+											<div onClick={onDiscard} className="pcard">
+												<img
+													className={selectedPlay === myDiscard ? 'selected' : ''}
+													src={discardSrc}
+												/>
+											</div>
+											<span>Discard</span>
 										</div>
-										<span>Discard</span>
+										<button
+											disabled={!canPlay}
+											onClick={play}
+											className="button is-danger is-small"
+										>
+											End Turn
+										</button>
 									</div>
-									<button
-                    disabled={!canPlay}
-                    onClick={play}
-                    className="button is-danger is-small"
-                   >
-										End Turn
-									</button>
-								</div>
-                {(!amIDown && (
-                  <>
-								    <div className="play-closer is-size-7" >
-									    <div />
-									    <div
-										    onClick={() => setViewTable(!viewTable)}
-									    >
-										    View {viewTable ? 'Plays' : 'Table'}
-									    </div>
-									    <div />
-								    </div>
-                    {goals}
-                  </>
-                ))}
+									{(!amIDown && (
+										<>
+											<div className="play-closer is-size-7" >
+												<div />
+												<div
+													onClick={() => setViewTable(!viewTable)}
+												>
+													View {viewTable ? 'Plays' : 'Table'}
+												</div>
+												<div />
+											</div>
+										</>
+									))}
+                </div>
+                {(!amIDown && goals)}
 								<div style={{ height: `${myHandHeight}px` }} />
 							</div>
 						);
@@ -977,7 +996,12 @@ const InGame = () => {
             !
           </div>
           {isDealer && (
-            <button className="button is-danger" >Deal Next Hand</button>
+            <button
+              onClick={deal}
+              className="button is-danger"
+            >
+              Deal Next Hand
+            </button>
           )}
 				</div>
       )}

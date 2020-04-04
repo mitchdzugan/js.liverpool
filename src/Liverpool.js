@@ -132,11 +132,17 @@ export const initGame = (roomId, player) => _.m({
 	idLookup: _.hashMap(player, 0),
 });
 
-export const joinGame = (state, name) => _.pipeline(
-	state,
-	_.curry(_.update, 'players', _.curry(_.conj, name)),
-	_.curry(_.update, 'idLookup', _.curry(_.assoc, name, 0))
-);
+export const joinGame = (state, name) => {
+	const started = _.get(state, 'started');
+	if (started) {
+		throw("Already Started");
+	}
+	return _.pipeline(
+		state,
+		_.curry(_.update, 'players', _.curry(_.conj, name)),
+		_.curry(_.update, 'idLookup', _.curry(_.assoc, name, 0))
+	);
+};
 
 export const setNumDecks = (state, numDecks) => (
 	_.assoc(state, 'numDecks', numDecks)
@@ -330,9 +336,7 @@ export const play = (state, playerName, plays) => {
 	}
 	_.meach(down, (type, piles) => (
 		_.each(piles, (pile) => {
-			console.log({ type });
 			const isValid = validatePlay(type, pile);
-			console.log(type, pile);
 			if (!isValid) {
 				throw("Invalid Play");
 			}
@@ -389,5 +393,61 @@ export const play = (state, playerName, plays) => {
 			handWinner: playerName,
 			hands: _.assocIn(hands, [playerName, 'held'], _.vector()),
 		})
+	}));
+};
+
+
+export const deal = (state, playerName) => {
+	const players = _.get(state, 'players');
+	const playerCount = _.count(players);
+	const dealerId = _.get(state, 'dealerId');
+	const idLookup = _.get(state, 'idLookup');
+	const handWinner = _.get(state, 'handWinner');
+	const playerId = _.get(idLookup, playerName);
+	if (!handWinner) {
+		throw("Current hand is not over");
+	}
+	if (playerId !== dealerId) {
+		throw("Not the dealer");
+	}
+
+
+	const numDecks = _.get(state, 'numDecks');
+	const fullDeck = _.shuffle(_.range(numDecks * 54));
+	const scores = _.mapValues(() => 0, idLookup);
+	const money = _.get(state, 'money', _.mapValues(() => -25, scores));
+	const handId = _.get(state, 'handId') + 1;
+	const turnId = (dealerId + 1) % playerCount;
+	const mayIs = _.vector();
+	const playerCards = _.vec(_.partition(
+		HAND_SIZE, _.take(HAND_SIZE * playerCount, fullDeck)
+	));
+	const hands = _.mapValues(
+		(id, name) => _.m({
+			mayIs: 3,
+			held: _.nth(playerCards, id),
+			down: _.m({
+				/*
+				[Goal.Set]: _.vector(
+					_.vector(5, 18, 31, 59),
+					_.vector(8, 8, 8, 8, 8),
+				)
+				*/
+			}),
+		}),
+		idLookup
+	);
+	const discard = _.list(_.nth(fullDeck, HAND_SIZE * playerCount));
+	const deck = _.drop(HAND_SIZE * playerCount + 1, fullDeck);
+	return _.merge(state, _.m({
+		hasDrawn: false,
+		handId,
+		dealerId,
+		hands,
+		turnId,
+		mayIs,
+		discard,
+		deck,
+		handWinner: null,
 	}));
 };
