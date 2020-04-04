@@ -370,8 +370,7 @@ export const play = (state, playerName, plays) => {
 	usedCards = _.conj(usedCards, discard);
 
 	const usedSet = new Set(_.intoArray(usedCards));
-	// const nextHeld = _.vec(_.remove(card => usedSet.has(card), currHeld));
-	const nextHeld = _.vector(); // TODO remove
+	const nextHeld = _.vec(_.remove(card => usedSet.has(card), currHeld));
 	hands = _.assocIn(hands, [playerName, 'held'], nextHeld);
 
 	const discardPile = _.get(state, 'discard');
