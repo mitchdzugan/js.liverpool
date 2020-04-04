@@ -35,9 +35,21 @@ th {
 		max-width: 280px;
 		margin: 0 auto;
 		.card-header {
+				display: flex;
+				flex-direction: column;
+				text-align: center;
 				justify-content: center;
+				a {
+						margin: 5px;
+						font-size: 0.75em;
+				}
+
 				.tags {
-						margin: 10px;
+						margin: 10px auto 0 auto;
+
+						.tag {
+								margin: 0;
+						}
 
 						.l0nk {
 								cursor: pointer;

@@ -128,6 +128,12 @@ const WaitingStart = () => {
             Copy
           </span>
         </div>
+        <a
+          onClick={() => copy(`https://quarantine-liverpool.herokuapp.com/#${roomId}`)}
+          className="is-small"
+        >
+          Copy invite link
+        </a>
       </div>
       <div className="card-content" >
         <div className="content" >
