@@ -221,7 +221,10 @@ const InGame = () => {
   );
   const [viewTable, setViewTable] = useState(false);
   const roomId = _.get(state, 'roomId');
+  const handWinner = _.get(state, 'handWinner');
+  const isHandOver = !!handWinner;
   const players = _.get(state, 'players');
+  const playerCount = _.count(players);
 	const idLookup = _.get(state, 'idLookup');
 	const hands = _.get(state, 'hands');
 	const dealerId = _.get(state, 'dealerId');
@@ -234,9 +237,16 @@ const InGame = () => {
 	const deckCount = _.get(state, 'deckCount');
 	const id = _.get(idLookup, player);
 	const isTurn = turnId === id;
+	const isMyTurn = turnId === id;
 	const isDealer = dealerId === id;
 	const mayIs = _.getIn(hands, [player, 'mayIs']);
-  const canMayI = !isTurn && !hasDrawn && mayIs > 0;
+	const mayIId = _.minBy(
+    id => (turnId + playerCount - id) % playerCount,
+    _.get(state, 'mayIs')
+  );
+  const mayIer = (!!mayIId || mayIId === 0) && _.nth(players, mayIId);
+  const isMayIActive = !!mayIer;
+  const canMayI = !isHandOver && !isTurn && !hasDrawn && mayIs > 0;
   const [ held, setHeld ] = useState(_.getIn(hands, [player, 'held']));
   useEffect(
     () => {
@@ -247,7 +257,7 @@ const InGame = () => {
 			  ...([...srvr_set].filter(card => !held_set.has(card)))
 		  );
 		  const updatedHeld = _.pipeline(
-			  _.concat(news, held),
+			  _.concat(held, news),
 			  _.partial(_.filter, (card) => srvr_set.has(card))
 		  );
       setHeld(updatedHeld);
@@ -377,7 +387,7 @@ const InGame = () => {
   const mkButtonClass = (isBold) => (
     `button is-small${isBold ? ' has-text-weight-bold' : ''}`
   );
-  const isPicking = isTurn && !hasDrawn;
+  const isPicking = !isHandOver && isTurn && !hasDrawn;
   const drawDeck = () => (
     isPicking && postRequest(API.DrawDeck(roomId))
   );
@@ -467,9 +477,14 @@ const InGame = () => {
           {isTable && (
             <div className={`deck${isPicking ? ' picking' : ''}`} >
               <div className="grant" >
-                <button className="button is-info is-small">
-                  Grant May I
-                </button>
+                {isMayIActive && isTurn && (
+                  <button
+                    onClick={drawDeck}
+                    className="button is-info is-small"
+                  >
+                    Grant May I
+                  </button>
+                )}
               </div>
 						  <div
                 onClick={takeDiscard}
@@ -516,10 +531,8 @@ const InGame = () => {
             let pClassName = "player";
             pClassName += isTurn ? ' turn' : '';
             const mayIs = _.getIn(hands, [player, 'mayIs']);
-            const isMayI = _.pipeline(
-              _.get(state, 'mayIs'),
-              _.partial(_.reduce, (has, id) => has || id === playerId, false)
-            );
+            const isMayI = playerId === mayIId;
+            const isDealer = dealerId === playerId;
             const renderChip = (i) => {
               const active = isMayI && i === mayIs - 1;
               const used = i >= mayIs;
@@ -550,7 +563,7 @@ const InGame = () => {
                     const currL = _.getIn(currTypePlays, [pileId, 0], _.vector());
                     const currR = _.getIn(currTypePlays, [pileId, 1], _.vector());
                     const fullPile = _.vec(_.concat(currL, pile, currR));
-                    const guid = `pile.${type}.${pileId}`;
+                    const guid = `pile.${player}.${type}.${pileId}`;
                     const renderExtra = (ind) => {
                       if (ind >= _.count(fullPile)) {
                         return null;
@@ -567,12 +580,14 @@ const InGame = () => {
 										const onPile = (e) => {
 											const { clientX } = e;
 											const el = document.getElementById(guid);
-											if (!el) {
+                      console.log('checking...');
+											if (!el || !isMyTurn || !hasDrawn) {
 												return;
 											}
 											e.nativeEvent.ignore = true;
 											const { x, width } = el.getBoundingClientRect();
 											const orientation = 2 * (clientX - x) > width ? 'RIGHT' : 'LEFT';
+                      console.log({ x, width, clientX, orientation });
 											const oId = _.match({
 												RIGHT: () => 1,
 												LEFT: () => 0,
@@ -587,6 +602,7 @@ const InGame = () => {
 													LEFT: () => [_.vector(selectedCard), v],
 												})(orientation);
 												const newPile = _.vec(_.concat(...getArgs(fullPile)));
+                        _.log({ newPile, fullPile, currR, currL });
 												if (validatePlay(type, newPile)) {
 													setPlays(_.assocIn(
 														plays,
@@ -622,7 +638,15 @@ const InGame = () => {
             );
             return (
               <div key={player} className={pClassName} >
-                <div className="text">{player}</div>
+                <div className="text">
+                  {isDealer && (
+                    <i className="dealer-chip fas fa-chevron-circle-right" />
+                  )}
+                  {player}
+                  {isDealer && (
+                    <i className="dealer-chip hidden fas fa-chevron-circle-right" />
+                  )}
+                </div>
 								<div key={player} className="player-contents" >
 									<div className="board-hand">
 										{renderDeck(_.getIn(hands, [player, 'heldCount']))}
@@ -931,6 +955,20 @@ const InGame = () => {
 						);
           })()}
         </>
+      )}
+      {isHandOver && (
+        <div className="hand-winner-banner" >
+          <div>
+            Hand Won By
+            <span className="has-text-weight-bold" >
+              {handWinner}
+            </span>
+            !
+          </div>
+          {isDealer && (
+            <button className="button is-danger" >Deal Next Hand</button>
+          )}
+				</div>
       )}
     </>
   );

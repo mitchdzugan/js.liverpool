@@ -10,6 +10,15 @@ $grey-dark: hsl(0, 0%, 49%);
 		}
 }
 
+.dealer-chip {
+		margin-right: 10px;
+		color: #192419;
+		text-shadow: #477148 -2px -1px 1px;
+		&.hidden {
+				opacity: 0;
+		}
+}
+
 .waiting-room {
 		position: relative;
 		top: 100px;
@@ -153,6 +162,26 @@ $grey-dark: hsl(0, 0%, 49%);
 		border-top: 1px solid #477148;
 }
 
+.hand-winner-banner {
+		position: fixed;
+		width: 100vw;
+		height: 100px;
+		background: rgba(20, 40, 20, 0.8);
+		left: 0;
+		top: calc(50vh - 50px);
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		text-align: center;
+		div {
+				margin: 10px;
+				span {
+						margin: 5px;
+				}
+		}
+}
+
 .player {
 		position: relative;
 		padding: 15px 0;
@@ -162,6 +191,7 @@ $grey-dark: hsl(0, 0%, 49%);
 
 		&.turn {
 				&:after {
+						pointer-events: none;
 						content: '';
 						position: absolute;
 						left: 0;

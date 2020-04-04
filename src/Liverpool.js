@@ -145,6 +145,7 @@ export const setNumDecks = (state, numDecks) => (
 const HAND_SIZE = 11;
 export const startGame = (state) => {
 	const players = _.shuffle(_.get(state, 'players'));
+	const playerCount = _.count(players);
 	const numDecks = _.get(state, 'numDecks');
 	const fullDeck = _.shuffle(_.range(numDecks * 54));
 	const idLookup = _.mkIdLookup(players);
@@ -155,17 +156,25 @@ export const startGame = (state) => {
 	const turnId = 1;
 	const mayIs = _.vector();
 	const playerCards = _.vec(_.partition(
-		HAND_SIZE, _.take(HAND_SIZE * numDecks, fullDeck)
+		HAND_SIZE, _.take(HAND_SIZE * playerCount, fullDeck)
 	));
 	const hands = _.mapValues(
 		(id, name) => _.m({
 			mayIs: 3,
 			held: _.nth(playerCards, id),
+			down: _.m({
+				/*
+				[Goal.Set]: _.vector(
+					_.vector(5, 18, 31, 59),
+					_.vector(8, 8, 8, 8, 8),
+				)
+				*/
+			}),
 		}),
 		idLookup
 	);
-	const discard = _.list(_.nth(fullDeck, HAND_SIZE * numDecks));
-	const deck = _.drop(HAND_SIZE * numDecks + 1, fullDeck);
+	const discard = _.list(_.nth(fullDeck, HAND_SIZE * playerCount));
+	const deck = _.drop(HAND_SIZE * playerCount + 1, fullDeck);
 	return _.merge(state, _.m({
 		started: true,
 		hasDrawn: false,
@@ -180,6 +189,7 @@ export const startGame = (state) => {
 		mayIs,
 		discard,
 		deck,
+		handWinner: null,
 	}));
 };
 
@@ -202,6 +212,12 @@ export const unMayI = (state, playerName) => {
 };
 
 export const takeDiscard = (state, playerName) => {
+	const turnId = _.get(state, 'turnId');
+	const idLookup = _.get(state, 'idLookup');
+	const playerId = _.get(idLookup, playerName);
+	if (turnId !== playerId) {
+		throw("Not your turn");
+	}
 	const discard = _.get(state, 'discard');
 	const hands = _.get(state, 'hands');
 	return _.merge(state, _.m({
@@ -214,9 +230,14 @@ export const takeDiscard = (state, playerName) => {
 };
 
 export const drawDeck = (state, playerName) => {
+	const turnId = _.get(state, 'turnId');
+	const idLookup = _.get(state, 'idLookup');
+	const playerId = _.get(idLookup, playerName);
+	if (turnId !== playerId) {
+		throw("Not your turn");
+	}
 	const players = _.get(state, 'players');
 	const playerCount = _.count(players);
-	const turnId = _.get(state, 'turnId');
 	const deck = _.get(state, 'deck');
 	const discard = _.get(state, 'discard');
 	const hands = _.get(state, 'hands');
@@ -258,6 +279,7 @@ export const play = (state, playerName, plays) => {
 	const players = _.get(state, 'players');
 	const playerCount = _.count(players);
 	const turnId = _.get(state, 'turnId');
+	const dealerId = _.get(state, 'dealerId');
 	const currHand = _.get(hands, playerName);
 	const currHeld = _.get(currHand, 'held');
 	const heldSet = new Set(_.intoArray(currHeld));
@@ -276,14 +298,12 @@ export const play = (state, playerName, plays) => {
 	if (turnId !== playerId) {
 		throw("Not your turn");
 	}
-	/*
 	if (isDown && hasDown) {
 		throw("Already Down");
 	}
 	if (!isDown && !hasDown && hasTable) {
 		throw("Cannot play on others until down");
 	}
-	*/
 
 	_.meach(table, (player, goals) => (
 		_.meach(goals, (type, piles) => (
@@ -355,8 +375,7 @@ export const play = (state, playerName, plays) => {
 	usedCards = _.conj(usedCards, discard);
 
 	const usedSet = new Set(_.intoArray(usedCards));
-	const nextHeld = _.remove(card => usedSet.has(card), currHeld);
-	console.log({ usedSet, nextHeld, currHeld });
+	const nextHeld = _.vec(_.remove(card => usedSet.has(card), currHeld));
 
 	const discardPile = _.get(state, 'discard');
 	return _.merge(state, _.m({
@@ -364,5 +383,11 @@ export const play = (state, playerName, plays) => {
 		discard: _.conj(discardPile, discard),
 		turnId: (turnId + 1) % playerCount,
 		hands: _.assocIn(hands, [playerName, 'held'], nextHeld),
+		...(_.count(nextHeld) ? {} : {
+			turnId,
+			dealerId: (dealerId + 1) % playerCount,
+			handWinner: playerName,
+			hands: _.assocIn(hands, [playerName, 'held'], _.vector()),
+		})
 	}));
 };
