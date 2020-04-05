@@ -262,7 +262,7 @@ export const drawDeck = (state, playerName) => {
 			_.curry(_.updateIn, [playerName, 'held'], _.curry(_.conj, _.nth(drawPile, drawCount - 1))),
 			!hasMayI ? _.identity : _.comp(
 				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.concat, _.take(2, drawPile))),
-				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.conj, _.peek(discard))),
+				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.conj, _.nth(discard, 0))),
 				_.curry(_.updateIn, [mayIer, 'mayIs'], _.dec)
 			)
 		)
@@ -374,9 +374,10 @@ export const play = (state, playerName, plays) => {
 	hands = _.assocIn(hands, [playerName, 'held'], nextHeld);
 
 	const discardPile = _.get(state, 'discard');
+	const newDiscardPile = _.conj(discardPile, discard);
 	const newState = _.merge(state, _.m({
 		hasDrawn: false,
-		discard: _.conj(discardPile, discard),
+		discard: newDiscardPile,
 		turnId: (turnId + 1) % playerCount,
 		hands,
 		...(_.count(nextHeld) ? {} : {
