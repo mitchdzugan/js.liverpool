@@ -238,8 +238,8 @@ export const drawDeck = (state, playerName) => {
 	const deck = _.get(state, 'deck');
 	const discard = _.get(state, 'discard');
 	const hands = _.get(state, 'hands');
-	const mayIs = _.get(state, 'mayIs');
-	const mayI = _.minBy(id => (turnId + playerCount - id) % playerCount, mayIs);
+	const mayIs = _.filter(id => id !== turnId, _.get(state, 'mayIs'));
+	const mayI = _.minBy(id => (id + playerCount - turnId) % playerCount, mayIs);
 	const mayIer = _.count(mayIs) && _.nth(players, mayI);
 	const hasMayI = !!mayIer && mayI !== turnId;
 	const drawCount = hasMayI ? 3 : 1;

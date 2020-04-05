@@ -283,8 +283,8 @@ const InGame = () => {
 	const isDealer = dealerId === id;
 	const mayIs = _.getIn(hands, [player, 'mayIs']);
 	const mayIId = _.minBy(
-    id => (turnId + playerCount - id) % playerCount,
-    _.get(state, 'mayIs')
+    id => (id + playerCount - turnId) % playerCount,
+    _.filter(id => id !== turnId, _.get(state, 'mayIs'))
   );
   const mayIer = (!!mayIId || mayIId === 0) && _.nth(players, mayIId);
   const isMayIActive = !!mayIer;
@@ -445,7 +445,7 @@ const InGame = () => {
       setViewTable(false);
       setPlays(_.hashMap());
     },
-    [turnId]
+    [turnId, _.get(state, 'handId')]
   );
   const inPlay_raw = _.reduceKV(
     (inPlay, k, v) => _.match({
