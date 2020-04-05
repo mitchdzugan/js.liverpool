@@ -523,6 +523,7 @@ const InGame = () => {
     );
   };
 
+  console.log(_.encode(state));
   return (
     <>
 			<div className="in-game">
