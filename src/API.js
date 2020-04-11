@@ -5,9 +5,11 @@ export class Request extends _.Enum {
 	static JoinRoom = new Request('Request.JoinRoom');
 	static ConfigureRoom = new Request('Request.ConfigureRoom');
 	static StartGame = new Request('Request.StartGame');
+	static Pass = new Request('Request.Pass');
 	static MayI = new Request('Request.MayI');
 	static UnMayI = new Request('Request.UnMayI');
 	static TakeDiscard = new Request('Request.TakeDiscard');
+	static Unintend = new Request('Request.Unintend');
 	static DrawDeck = new Request('Request.DrawDeck');
 	static Play = new Request('Request.Play');
 	static Deal = new Request('Request.Deal');
@@ -26,6 +28,9 @@ export const ConfigureRoom = (roomId, numDecks) => (
 export const StartGame = (roomId) => (
 	_.mk(Request.StartGame, { roomId })
 );
+export const Pass = (roomId) => (
+	_.mk(Request.Pass, { roomId })
+);
 export const MayI = (roomId) => (
 	_.mk(Request.MayI, { roomId })
 );
@@ -34,6 +39,9 @@ export const UnMayI = (roomId) => (
 );
 export const TakeDiscard = (roomId) => (
 	_.mk(Request.TakeDiscard, { roomId })
+);
+export const Unintend = (roomId) => (
+	_.mk(Request.Unintend, { roomId })
 );
 export const DrawDeck = (roomId) => (
 	_.mk(Request.DrawDeck, { roomId })

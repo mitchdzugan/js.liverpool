@@ -132,6 +132,12 @@ io.on('connection', (socket) => {
 					games[roomId].state = Liverpool.startGame(games[roomId].state);
 					broadcastGameState(roomId);
 				},
+				[API.Request.Pass]: ({ roomId }) => {
+					games[roomId].state = Liverpool.pass(
+						games[roomId].state, G.playerName
+					);
+					broadcastGameState(roomId);
+				},
 				[API.Request.MayI]: ({ roomId }) => {
 					games[roomId].state = Liverpool.mayI(
 						games[roomId].state, G.playerName
@@ -152,6 +158,12 @@ io.on('connection', (socket) => {
 				},
 				[API.Request.DrawDeck]: ({ roomId }) => {
 					games[roomId].state = Liverpool.drawDeck(
+						games[roomId].state, G.playerName
+					);
+					broadcastGameState(roomId);
+				},
+				[API.Request.Unintend]: ({ roomId }) => {
+					games[roomId].state = Liverpool.unintend(
 						games[roomId].state, G.playerName
 					);
 					broadcastGameState(roomId);

@@ -65,13 +65,13 @@ th {
 
 @keyframes highlight {
 		0% {
-				background-color: rgba(255, 255, 255, 0.09);
-		}
-		50% {
 				background-color: rgba(255, 255, 255, 0.15);
 		}
+		50% {
+				background-color: rgba(255, 255, 255, 0.30);
+		}
 		100% {
-				background-color: rgba(255, 255, 255, 0.09);
+				background-color: rgba(255, 255, 255, 0.15);
 		}
 }
 
@@ -185,13 +185,19 @@ th {
 		border-top: 1px solid #477148;
 }
 
+.hidden {
+		opacity: 0;
+}
+
 .hand-winner-banner {
 		position: fixed;
 		width: 100vw;
-		height: 100px;
-		background: rgba(20, 40, 20, 0.8);
+		height: 150px;
+		z-index: 5;
+		background: rgba(20, 40, 20, 0.9);
+		padding: 0 10px;
 		left: 0;
-		top: calc(50vh - 50px);
+		top: calc(50vh - 100px);
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
@@ -201,6 +207,13 @@ th {
 				margin: 10px;
 				span {
 						margin: 5px;
+				}
+		}
+
+		.field {
+				margin: 0;
+				.control {
+						margin: 0;
 				}
 		}
 }
@@ -310,7 +323,14 @@ th {
 								.deck-top, .discarded {
 										filter: drop-shadow(rgb(122, 220, 220) 0px 0px 6px);
 								}
+
+								&.intended {
+										.discarded {
+												filter: none;
+										}
+								}
 						}
+						position: relative;
 						margin: 10px;
 						display: flex;
 						justify-content: center;
@@ -352,44 +372,6 @@ th {
 				}
 		}
 
-		.may-i {
-				position: absolute;
-				bottom: 5px;
-				right: 10px;
-				height: 55px;
-				width: 55px;
-				border-radius: 27px;
-				background-color: $red;
-				background-image: linear-gradient($red, #ff6b88);
-				text-shadow: hsl(0, 0%, 56%) 1px 1px 1px;
-
-				&.cant {
-						color: $black;
-						opacity: 0.5;
-				}
-
-				&:hover {
-						background-image: linear-gradient($red, #ff6b88);
-				}
-
-				&.cancel {
-						background-image: linear-gradient(#08588c, $info);
-						&:hover {
-								background-image: linear-gradient($info, #69c4ff);
-						}
-				}
-
-				&:after {
-						content: '';
-						position: absolute;
-						top: 2px;
-						left: 2px;
-						width: calc(100% - 4px);
-						height: calc(50% - 2px);
-						border-radius: 26px 26px 0 0;
-						background: linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.0));
-				}
-		}
 }
 
 .invalid {
@@ -439,6 +421,12 @@ body {
 		flex-direction: row;
 		width: 100%;
 		justify-content: space-between;
+
+		&.hidden {
+				opacity: 0;
+				pointer-events: none;
+		}
+
 		.discard-space {
 				display: flex;
 				flex-direction: row;
@@ -539,4 +527,96 @@ body {
 						min-width: 8em;
 				}
 		}
+}
+
+
+.may-i {
+		position: absolute;
+		bottom: 5px;
+		right: 10px;
+		height: 55px;
+		width: 55px;
+		border-radius: 27px;
+		background-color: $red;
+		background-image: linear-gradient($red, #ff6b88);
+		text-shadow: hsl(0, 0%, 56%) 1px 1px 1px;
+
+		&.cant {
+				color: $black;
+				opacity: 0.5;
+		}
+
+		&:hover {
+				background-image: linear-gradient($red, #ff6b88);
+		}
+
+		&.cancel {
+				background-image: linear-gradient(#08588c, $info);
+				&:hover {
+						background-image: linear-gradient($info, #69c4ff);
+				}
+		}
+
+		&:after {
+				content: '';
+				position: absolute;
+				top: 2px;
+				left: 2px;
+				width: calc(100% - 4px);
+				height: calc(50% - 2px);
+				border-radius: 26px 26px 0 0;
+				background: linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.0));
+		}
+}
+
+.pass-button {
+		position: absolute;
+		bottom: 5px;
+		left: 10px;
+		height: 55px;
+		width: 55px;
+		border-radius: 27px;
+		background-color: $yellow;
+		background-image: linear-gradient($yellow, #ffeca3);
+		text-shadow: hsl(0, 0%, 56%) 1px 1px 1px;
+
+		&.cant {
+				color: $black;
+				opacity: 0.5;
+		}
+
+		&:hover {
+				background-image: linear-gradient($yellow, #ffeca3);
+		}
+
+		&.cancel {
+				background-image: linear-gradient(#08588c, $info);
+				&:hover {
+						background-image: linear-gradient($info, #69c4ff);
+				}
+		}
+
+		&:after {
+				content: '';
+				position: absolute;
+				top: 2px;
+				left: 2px;
+				width: calc(100% - 4px);
+				height: calc(50% - 2px);
+				border-radius: 26px 26px 0 0;
+				background: linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.0));
+		}
+}
+
+.round-header {
+		color: #192419;
+		text-shadow: #477148 -2px -1px 1px;
+		margin: 5px;
+		font-size: 1.4em;
+		width: 100%;
+		position: absolute;
+}
+
+.faded {
+		opacity: 0.4;
 }

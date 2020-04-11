@@ -2,7 +2,9 @@ import React from 'react';
 import FRP from 'gen-impulse/FRP';
 import * as API from 'API';
 import { toString, toSrc, fromInt } from 'Card';
-import { Goal, getGoal, validatePlay } from 'Liverpool';
+import {
+  Goal, getGoal, validatePlay, getMayIer, needsPass
+} from 'Liverpool';
 import _ from 'Util/Mori';
 import copy from 'clipboard-copy';
 
@@ -263,6 +265,8 @@ const InGame = () => {
     },
     []
   );
+  const isFirstTurn = _.get(state, "isFirstTurn");
+  const intendsDraw = _.get(state, "intendsDraw");
   const handWinner = _.get(state, 'handWinner');
   const isHandOver = !!handWinner;
   const players = _.get(state, 'players');
@@ -282,12 +286,9 @@ const InGame = () => {
 	const isMyTurn = turnId === id;
 	const isDealer = dealerId === id;
 	const mayIs = _.getIn(hands, [player, 'mayIs']);
-	const mayIId = _.minBy(
-    id => (id + playerCount - turnId) % playerCount,
-    _.filter(id => id !== turnId, _.get(state, 'mayIs'))
-  );
-  const mayIer = (!!mayIId || mayIId === 0) && _.nth(players, mayIId);
+  const mayIer = getMayIer(state);
   const isMayIActive = !!mayIer;
+  const mayIId = isMayIActive && _.get(idLookup, mayIer);
   const canMayI = !isHandOver && !isTurn && !hasDrawn && mayIs > 0;
   const [ held, setHeld ] = useState(_.getIn(hands, [player, 'held']));
   useEffect(
@@ -310,13 +311,24 @@ const InGame = () => {
   const amIDown = myDown && _.count(myDown) > 0;
   const isMayI = _.pipeline(
     _.get(state, 'mayIs'),
-    _.partial(_.reduce, (has, id) => has || id === playerId, false)
+    _.curry(_.get, player),
+  );
+  const isPass = _.pipeline(
+    _.get(state, 'mayIs'),
+    _.curry(_.get, player),
+    mayIState => mayIState === false,
   );
   const mayI = () => (
     postRequest(API.MayI(roomId))
   );
+  const pass = () => (
+    postRequest(API.Pass(roomId))
+  );
   const unMayI = () => (
     postRequest(API.UnMayI(roomId))
+  );
+  const unintend = () => (
+    postRequest(API.Unintend(roomId))
   );
   const isSel = (card) => (
     card === selectedCard || card === selectedPlay
@@ -437,15 +449,16 @@ const InGame = () => {
     isPicking && postRequest(API.DrawDeck(roomId))
   );
   const takeDiscard = () => (
-    isPicking && postRequest(API.TakeDiscard(roomId))
+    isPicking && !intendsDraw && postRequest(API.TakeDiscard(roomId))
   );
   const [plays, setPlays] = useState(_.hashMap());
+  const handId = _.get(state, 'handId');
   useEffect(
     () => {
       setViewTable(false);
       setPlays(_.hashMap());
     },
-    [turnId, _.get(state, 'handId')]
+    [turnId, handId]
   );
   const inPlay_raw = _.reduceKV(
     (inPlay, k, v) => _.match({
@@ -523,7 +536,6 @@ const InGame = () => {
     );
   };
 
-  console.log(_.encode(state));
   return (
     <>
 			<div className="in-game">
@@ -549,7 +561,28 @@ const InGame = () => {
             </p>
           </div>
           {isTable && (
-            <div className={`deck${isPicking ? ' picking' : ''}`} >
+            <div className={`deck${isPicking ? ' picking' : ''}${intendsDraw ? ' intended' : ''}`} >
+              {canMayI && (
+				        <button
+                  className={mayIClassName}
+                  onClick={isMayI ? unMayI : mayI}
+                >
+                  {isMayI ? 'Cancel' : (
+                    <>
+					            May I <br />
+					            {mayIs}
+                    </>
+                  )}
+				        </button>
+              )}
+              {canMayI && (
+				        <button
+                  className={`pass-button ${isPass ? 'cancel' : ''}`}
+                  onClick={isPass ? unMayI : pass}
+                >
+                  {isPass ? 'Cancel' : 'Pass'}
+				        </button>
+              )}
               <div className="grant" >
                 {isMayIActive && isTurn && (
                   <button
@@ -621,7 +654,7 @@ const InGame = () => {
           </div>
         )}
         {isTable && (
-        <div className="players">
+        <div className={`players ${needsPass(state, playerId) || isHandOver ? 'faded' : ''}`}>
           {_.intoArray(players).map(player => {
 	          const playerId = _.get(idLookup, player);
             const isTurn = playerId === turnId;
@@ -776,20 +809,7 @@ const InGame = () => {
 							    />
 						    </div>
 					    ))}
-					    <button className="may-i-spacer" />
 				    </div>
-				    <button
-              disabled={!canMayI}
-              className={mayIClassName}
-              onClick={isMayI ? unMayI : mayI}
-            >
-              {isMayI ? 'Cancel' : (
-                <>
-					        May I <br />
-					        {mayIs}
-                </>
-              )}
-				    </button>
 			    </div>
 					{(() => {
 						const onDiscard = (e) => {
@@ -812,7 +832,7 @@ const InGame = () => {
 						const myDiscard = _.get(plays, 'discard');
             const discardSrc = toSrc(fromInt(myDiscard));
             let transform = 'translateY(100%)';
-            if (isTurn && hasDrawn) {
+            if ((isTurn && hasDrawn) || (isFirstTurn && !hasDrawn)) {
               if (!viewTable) {
                 transform = 'translateY(0)';
               } else {
@@ -848,6 +868,9 @@ const InGame = () => {
                 (targetId) => {
                   const card = _.nth(curr, targetId);
                   const onClick = (e) => {
+                    if (!hasDrawn) {
+                      return;
+                    }
 							      e.nativeEvent.ignore = true;
 							      if (!hasSelected) {
                       if (hasSelectedPlay) {
@@ -1018,7 +1041,12 @@ const InGame = () => {
 								className="play-board"
 							>
                 <div id="play-board-top" >
-									<div className="play-controls" >
+                  {!hasDrawn && (
+                    <div className="round-header" >
+											{handId === 6 ? 'Final Round' : `Round ${handId + 1}`}
+                    </div>
+                  )}
+									<div className={`play-controls ${!hasDrawn ? 'hidden' : ''}`} >
 										<button
 											disabled={_.count(inPlay) === 0}
 											onClick={onCancel}
@@ -1063,6 +1091,52 @@ const InGame = () => {
 						);
           })()}
         </>
+      )}
+      {needsPass(state, playerId) && (
+        isTurn ? (
+					<div className="hand-winner-banner" >
+            <div>
+              You have indicated you would like to draw from the deck.
+              Currently waiting to see if any other players woud like to May I...
+            </div>
+            <button
+              onClick={unintend}
+              className="button is-small is-danger"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+					<div className="hand-winner-banner" >
+						<div>
+							<span className="has-text-weight-bold" >
+								{_.nth(players, turnId)}
+							</span>
+							has indicated they would like to draw from the deck. What would you like to do?
+						</div>
+						<div className="field has-addons">
+							<p className="control">
+								<button
+									onClick={isPass ? unMayI : pass}
+									className={`button is-warning is-small ${isPass ? 'is-active' : ''}`}
+								>
+									Pass
+								</button>
+							</p>
+							<p className="control">
+								<button
+									onClick={isMayI ? unMayI : mayI}
+									className={`button is-danger is-small ${isMayI ? 'is-active' : ''}`}
+								>
+									May I
+								</button>
+							</p>
+						</div>
+						<div className={isMayI || isPass ? '' : 'hidden'} >
+							Waiting on other players...
+						</div>
+					</div>
+        )
       )}
       {isHandOver && (
         <div className="hand-winner-banner" >

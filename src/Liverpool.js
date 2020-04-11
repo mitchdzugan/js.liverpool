@@ -33,7 +33,7 @@ const validateSetPlay = (play) => {
 	);
 };
 
-const validateRunPlay = (play) => {
+const validateRunPlay_fwd = (play) => {
 	if (_.count(play) < 4) {
 		return false;
 	}
@@ -93,6 +93,12 @@ const validateRunPlay = (play) => {
 		({ isValid }) => isValid
 	);
 };
+
+const validateRunPlay = (play) => (
+	validateRunPlay_fwd(play) || (
+		validateRunPlay_fwd(_.reverse(play))
+	)
+);
 
 export const validatePlay = (type, play) => {
 	const hasNoCard = _.reduce(
@@ -159,7 +165,7 @@ export const startGame = (state) => {
 	const handId = 0;
 	const dealerId = 0;
 	const turnId = 1;
-	const mayIs = _.vector();
+	const mayIs = _.hashMap();
 	const playerCards = _.vec(_.partition(
 		HAND_SIZE, _.take(HAND_SIZE * playerCount, fullDeck)
 	));
@@ -173,6 +179,8 @@ export const startGame = (state) => {
 	const discard = _.list(_.nth(fullDeck, HAND_SIZE * playerCount));
 	const deck = _.drop(HAND_SIZE * playerCount + 1, fullDeck);
 	return _.merge(state, _.m({
+		isFirstTurn: true,
+		intendsDraw: false,
 		started: true,
 		hasDrawn: false,
 		players,
@@ -190,22 +198,131 @@ export const startGame = (state) => {
 	}));
 };
 
+export const canDrawDeck = (state) => {
+	const turnId = _.get(state, 'turnId');
+	const intendsDraw = _.get(state, 'intendsDraw');
+	const isFirstTurn = _.get(state, 'isFirstTurn');
+	const mayIs = _.get(state, 'mayIs');
+	const players = _.get(state, 'players');
+	const playerCount = _.count(players);
+	return intendsDraw && _.pipeline(
+		_.range(turnId + 1, turnId + playerCount - (isFirstTurn ? 0 : 1)),
+		_.partial(_.map, n => _.nth(players, n % playerCount)),
+		_.partial(_.takeWhile, player => !_.get(mayIs, player)),
+		_.partial(_.every, player => _.get(mayIs, player) === false),
+	);
+};
+
+export const needsPass = (state, playerId) => {
+	const turnId = _.get(state, 'turnId');
+	const intendsDraw = _.get(state, 'intendsDraw');
+	const isFirstTurn = _.get(state, 'isFirstTurn');
+	const players = _.get(state, 'players');
+	const playerCount = _.count(players);
+	const wasLastTurn = ((playerCount + turnId - 1) % playerCount) === playerId;
+	return intendsDraw && (isFirstTurn || !wasLastTurn);
+};
+
+export const getMayIer = (state) => {
+	const turnId = _.get(state, 'turnId');
+	const mayIs = _.get(state, 'mayIs');
+	const players = _.get(state, 'players');
+	const playerCount = _.count(players);
+	return _.pipeline(
+		_.range(turnId + 1, turnId + playerCount),
+		_.partial(_.map, n => _.nth(players, n % playerCount)),
+		_.partial(_.dropWhile, player => !_.get(mayIs, player)),
+		(actives) => _.count(actives) === 0 ? null : _.first(actives)
+	);
+};
+
+export const doDrawDeck = (state) => {
+	const turnId = _.get(state, 'turnId');
+	const idLookup = _.get(state, 'idLookup');
+	const players = _.get(state, 'players');
+	const playerName = _.nth(players, turnId);
+	const playerId = _.get(idLookup, playerName);
+	const playerCount = _.count(players);
+	const deck = _.get(state, 'deck');
+	const discard = _.get(state, 'discard');
+	const hands = _.get(state, 'hands');
+	const mayIer = getMayIer(state);
+	const hasMayI = !!mayIer;
+	const drawCount = hasMayI ? 3 : 1;
+	const needsShuffle = _.count(deck) <= drawCount;
+	let newDeck = _.drop(drawCount, deck);
+	let drawPile = _.take(drawCount, deck);
+	if (needsShuffle) {
+		const shuffled = _.shuffle(discard);
+		newDeck = _.drop(drawCount - _.count(deck), shuffled);
+		drawPile = _.take(drawCount, _.concat(deck, shuffled));
+	}
+	const newDiscard = needsShuffle ? _.list() : discard;
+	return _.merge(state, _.m({
+		intendsDraw: false,
+		hasDrawn: true,
+		mayIs: _.hashMap(),
+		deck: newDeck,
+		discard: _.drop(hasMayI ? 1 : 0, newDiscard),
+		hands: _.pipeline(
+			hands,
+			_.curry(_.updateIn, [playerName, 'held'], _.curry(_.conj, _.nth(drawPile, drawCount - 1))),
+			!hasMayI ? _.identity : _.comp(
+				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.concat, _.take(2, drawPile))),
+				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.conj, _.nth(discard, 0))),
+				_.curry(_.updateIn, [mayIer, 'mayIs'], _.dec)
+			)
+		)
+	}));
+};
+
+const drawDeckIfReady = (state) => canDrawDeck(state) ? doDrawDeck(state) : state;
+
 export const mayI = (state, playerName) => {
 	const idLookup = _.get(state, 'idLookup');
 	const mayIs = _.get(state, 'mayIs');
-	const id = _.get(idLookup, playerName);
-	return _.merge(state, _.m({
-		mayIs: _.conj(mayIs, id)
+	const updated = _.merge(state, _.m({
+		mayIs: _.assoc(mayIs, playerName, true)
 	}));
+	return drawDeckIfReady(updated);
+};
+
+export const pass = (state, playerName) => {
+	const idLookup = _.get(state, 'idLookup');
+	const mayIs = _.get(state, 'mayIs');
+	const updated = _.merge(state, _.m({
+		mayIs: _.assoc(mayIs, playerName, false)
+	}));
+	return drawDeckIfReady(updated);
 };
 
 export const unMayI = (state, playerName) => {
 	const idLookup = _.get(state, 'idLookup');
 	const mayIs = _.get(state, 'mayIs');
-	const id = _.get(idLookup, playerName);
-	return _.merge(state, _.m({
-		mayIs: _.filter((pId) => pId !== id, mayIs)
+	const updated = _.merge(state, _.m({
+		mayIs: _.dissoc(mayIs, playerName)
 	}));
+	return drawDeckIfReady(updated);
+};
+
+export const drawDeck = (state, playerName) => {
+	const turnId = _.get(state, 'turnId');
+	const idLookup = _.get(state, 'idLookup');
+	const playerId = _.get(idLookup, playerName);
+	if (turnId !== playerId) {
+		throw("Not your turn");
+	}
+	return drawDeckIfReady(_.assoc(state, 'intendsDraw', true));
+};
+
+export const unintend = (state, playerName) => {
+	const turnId = _.get(state, 'turnId');
+	const idLookup = _.get(state, 'idLookup');
+	const playerId = _.get(idLookup, playerName);
+	if (turnId !== playerId) {
+		throw("Not your turn");
+	}
+	return drawDeckIfReady(_.assoc(state, 'intendsDraw', false));
 };
 
 export const takeDiscard = (state, playerName) => {
@@ -218,53 +335,11 @@ export const takeDiscard = (state, playerName) => {
 	const discard = _.get(state, 'discard');
 	const hands = _.get(state, 'hands');
 	return _.merge(state, _.m({
+		intendsDraw: false,
 		hasDrawn: true,
 		discard: _.drop(1, discard),
 		hands: _.updateIn(
 			hands, [playerName, 'held'], _.curry(_.conj, _.nth(discard, 0))
-		)
-	}));
-};
-
-export const drawDeck = (state, playerName) => {
-	const turnId = _.get(state, 'turnId');
-	const idLookup = _.get(state, 'idLookup');
-	const playerId = _.get(idLookup, playerName);
-	if (turnId !== playerId) {
-		throw("Not your turn");
-	}
-	const players = _.get(state, 'players');
-	const playerCount = _.count(players);
-	const deck = _.get(state, 'deck');
-	const discard = _.get(state, 'discard');
-	const hands = _.get(state, 'hands');
-	const mayIs = _.filter(id => id !== turnId, _.get(state, 'mayIs'));
-	const mayI = _.minBy(id => (id + playerCount - turnId) % playerCount, mayIs);
-	const mayIer = _.count(mayIs) && _.nth(players, mayI);
-	const hasMayI = !!mayIer && mayI !== turnId;
-	const drawCount = hasMayI ? 3 : 1;
-	const needsShuffle = _.count(deck) <= drawCount;
-	let newDeck = _.drop(drawCount, deck);
-	let drawPile = _.take(drawCount, deck);
-	if (needsShuffle) {
-		const shuffled = _.shuffle(discard);
-		newDeck = _.drop(drawCount - _.count(deck), shuffled);
-		drawPile = _.take(drawCount, _.concat(deck, shuffled));
-	}
-	const newDiscard = needsShuffle ? _.list() : discard;
-	return _.merge(state, _.m({
-		hasDrawn: true,
-		mayIs: _.vector(),
-		deck: newDeck,
-		discard: _.drop(hasMayI ? 1 : 0, newDiscard),
-		hands: _.pipeline(
-			hands,
-			_.curry(_.updateIn, [playerName, 'held'], _.curry(_.conj, _.nth(drawPile, drawCount - 1))),
-			!hasMayI ? _.identity : _.comp(
-				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.concat, _.take(2, drawPile))),
-				_.curry(_.updateIn, [mayIer, 'held'], _.curry(_.conj, _.nth(discard, 0))),
-				_.curry(_.updateIn, [mayIer, 'mayIs'], _.dec)
-			)
 		)
 	}));
 };
@@ -376,6 +451,7 @@ export const play = (state, playerName, plays) => {
 	const discardPile = _.get(state, 'discard');
 	const newDiscardPile = _.conj(discardPile, discard);
 	const newState = _.merge(state, _.m({
+		isFirstTurn: false,
 		hasDrawn: false,
 		discard: newDiscardPile,
 		turnId: (turnId + 1) % playerCount,
@@ -470,7 +546,7 @@ export const deal = (state, playerName) => {
 	const fullDeck = _.shuffle(_.range(numDecks * 54));
 	const handId = _.get(state, 'handId') + 1;
 	const turnId = (dealerId + 1) % playerCount;
-	const mayIs = _.vector();
+	const mayIs = _.hashMap();
 	const playerCards = _.vec(_.partition(
 		HAND_SIZE, _.take(HAND_SIZE * playerCount, fullDeck)
 	));
@@ -484,6 +560,8 @@ export const deal = (state, playerName) => {
 	const discard = _.list(_.nth(fullDeck, HAND_SIZE * playerCount));
 	const deck = _.drop(HAND_SIZE * playerCount + 1, fullDeck);
 	return _.merge(state, _.m({
+		intendsDraw: false,
+		isFirstTurn: true,
 		hasDrawn: false,
 		handId,
 		dealerId,
