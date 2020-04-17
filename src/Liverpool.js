@@ -337,6 +337,7 @@ export const takeDiscard = (state, playerName) => {
 	return _.merge(state, _.m({
 		intendsDraw: false,
 		hasDrawn: true,
+		mayIs: _.hashMap(),
 		discard: _.drop(1, discard),
 		hands: _.updateIn(
 			hands, [playerName, 'held'], _.curry(_.conj, _.nth(discard, 0))
