@@ -14,18 +14,18 @@ const {
 } = React;
 
 class Screen extends _.Enum {
-	static NoRoom = new Screen();
-	static WaitingStart = new Screen();
-	static InGame = new Screen();
-	static _ = Screen.closeEnum();
+  static NoRoom = new Screen();
+  static WaitingStart = new Screen();
+  static InGame = new Screen();
+  static _ = Screen.closeEnum();
 }
 
 const getCurrScreen = (state) => {
-	if (!state) {
-		return Screen.NoRoom;
-	}
+  if (!state) {
+    return Screen.NoRoom;
+  }
 
-	return _.get(state, 'started') ? Screen.InGame : Screen.WaitingStart;
+  return _.get(state, 'started') ? Screen.InGame : Screen.WaitingStart;
 };
 
 const isServer = () => (
@@ -102,8 +102,8 @@ const NoRoom = () => {
             </p>
           </div>
         </div>
-			</div>
-		</div>
+      </div>
+    </div>
   );
 };
 
@@ -271,21 +271,21 @@ const InGame = () => {
   const isHandOver = !!handWinner;
   const players = _.get(state, 'players');
   const playerCount = _.count(players);
-	const idLookup = _.get(state, 'idLookup');
-	const hands = _.get(state, 'hands');
-	const dealerId = _.get(state, 'dealerId');
-	const turnId = _.get(state, 'turnId');
-	const discard = _.get(state, 'discard');
-	const s = i => toString(fromInt(i));
-	const player = _.get(state, 'player');
-	const playerId = _.get(idLookup, player);
-	const hasDrawn = _.get(state, 'hasDrawn');
-	const deckCount = _.get(state, 'deckCount');
-	const id = _.get(idLookup, player);
-	const isTurn = turnId === id;
-	const isMyTurn = turnId === id;
-	const isDealer = dealerId === id;
-	const mayIs = _.getIn(hands, [player, 'mayIs']);
+  const idLookup = _.get(state, 'idLookup');
+  const hands = _.get(state, 'hands');
+  const dealerId = _.get(state, 'dealerId');
+  const turnId = _.get(state, 'turnId');
+  const discard = _.get(state, 'discard');
+  const s = i => toString(fromInt(i));
+  const player = _.get(state, 'player');
+  const playerId = _.get(idLookup, player);
+  const hasDrawn = _.get(state, 'hasDrawn');
+  const deckCount = _.get(state, 'deckCount');
+  const id = _.get(idLookup, player);
+  const isTurn = turnId === id;
+  const isMyTurn = turnId === id;
+  const isDealer = dealerId === id;
+  const mayIs = _.getIn(hands, [player, 'mayIs']);
   const mayIer = getMayIer(state);
   const isMayIActive = !!mayIer;
   const mayIId = isMayIActive && _.get(idLookup, mayIer);
@@ -294,15 +294,15 @@ const InGame = () => {
   useEffect(
     () => {
       const srvr = _.getIn(hands, [player, 'held']);
-		  const srvr_set = new Set(_.intoArray(srvr));
-		  const held_set = new Set(_.intoArray(held));
-		  const news = _.vector(
-			  ...([...srvr_set].filter(card => !held_set.has(card)))
-		  );
-		  const updatedHeld = _.pipeline(
-			  _.concat(held, news),
-			  _.partial(_.filter, (card) => srvr_set.has(card))
-		  );
+      const srvr_set = new Set(_.intoArray(srvr));
+      const held_set = new Set(_.intoArray(held));
+      const news = _.vector(
+        ...([...srvr_set].filter(card => !held_set.has(card)))
+      );
+      const updatedHeld = _.pipeline(
+        _.concat(held, news),
+        _.partial(_.filter, (card) => srvr_set.has(card))
+      );
       setHeld(updatedHeld);
     },
     [_.getIn(hands, [player, 'held'])]
@@ -352,62 +352,62 @@ const InGame = () => {
     if (!hasSelected) {
       return;
     }
-		const { clientX, clientY, target } = e;
-		const cardWidth = 46;
-		const cardHeight = 35;
-		const closest = _.pipeline(
-			document.getElementById('card-parent').children,
-			Array.from,
-			(children) => _.vector(...children),
+    const { clientX, clientY, target } = e;
+    const cardWidth = 46;
+    const cardHeight = 35;
+    const closest = _.pipeline(
+      document.getElementById('card-parent').children,
+      Array.from,
+      (children) => _.vector(...children),
       _.partial(_.filter, (el) => el.tagName !== 'BUTTON'),
-			_.partial(_.map, (el) => ({ el, rect: el.getBoundingClientRect() })),
-			_.partial(_.map, ({ el, rect: { x, y, width, height } }) => {
-				const distX = (width / 2) + x - clientX;
-				const cardVal = parseInt(el.dataset.cardVal, 10);
-				return {
-					distX: Math.abs(distX),
-					distY: Math.abs((height / 2) + y - clientY),
-					orientation: distX < 0 ? 'RIGHT' : 'LEFT',
-					card: toString(fromInt(cardVal)),
-					cardVal,
-				};
-			}),
-			_.partial(_.minBy, ({ distY, distX }) => Math.sqrt(distY * distY + distX * distX)),
-		);
+      _.partial(_.map, (el) => ({ el, rect: el.getBoundingClientRect() })),
+      _.partial(_.map, ({ el, rect: { x, y, width, height } }) => {
+        const distX = (width / 2) + x - clientX;
+        const cardVal = parseInt(el.dataset.cardVal, 10);
+        return {
+          distX: Math.abs(distX),
+          distY: Math.abs((height / 2) + y - clientY),
+          orientation: distX < 0 ? 'RIGHT' : 'LEFT',
+          card: toString(fromInt(cardVal)),
+          cardVal,
+        };
+      }),
+      _.partial(_.minBy, ({ distY, distX }) => Math.sqrt(distY * distY + distX * distX)),
+    );
 
-		if (closest.distX > cardWidth || closest.distY > cardHeight) {
-			return;
-		}
-		let past = false;
-		let first = true;
-		let wasFirst = false;
-		const updatedHeld = _.pipeline(
-			held,
-			_.partial(_.partitionBy, (card) => {
-				if (past) {
-					return true;
-				}
-				if (card === closest.cardVal) {
-					past = true;
-					wasFirst = first;
-					return closest.orientation === 'LEFT';
-				}
-				first = false;
-				return false;
-			}),
-			(partitioned) => (
-				_.count(partitioned) > 1 ? partitioned : (
-					wasFirst ?
-						_.concat(_.vector(_.vector()), partitioned) :
-						_.concat(partitioned, _.vector(_.vector()))
-				)
-			),
-			(partitioned) => _.concat(
-				_.filter(card => card !== selectedCard, _.nth(partitioned, 0)),
-				_.vector(selectedCard),
-				_.filter(card => card !== selectedCard, _.nth(partitioned, 1)),
-			)
-		);
+    if (closest.distX > cardWidth || closest.distY > cardHeight) {
+      return;
+    }
+    let past = false;
+    let first = true;
+    let wasFirst = false;
+    const updatedHeld = _.pipeline(
+      held,
+      _.partial(_.partitionBy, (card) => {
+        if (past) {
+          return true;
+        }
+        if (card === closest.cardVal) {
+          past = true;
+          wasFirst = first;
+          return closest.orientation === 'LEFT';
+        }
+        first = false;
+        return false;
+      }),
+      (partitioned) => (
+        _.count(partitioned) > 1 ? partitioned : (
+          wasFirst ?
+            _.concat(_.vector(_.vector()), partitioned) :
+            _.concat(partitioned, _.vector(_.vector()))
+        )
+      ),
+      (partitioned) => _.concat(
+        _.filter(card => card !== selectedCard, _.nth(partitioned, 0)),
+        _.vector(selectedCard),
+        _.filter(card => card !== selectedCard, _.nth(partitioned, 1)),
+      )
+    );
     setHeld(updatedHeld);
   };
 
@@ -464,22 +464,22 @@ const InGame = () => {
     (inPlay, k, v) => _.match({
       discard: () => _.assoc(inPlay, v, true),
       down: () => _.reduceKV(
-				(inPlay, k, v) => _.reduceKV(
-					(inPlay, k, v) => _.reduce(
-						(inPlay, v) => _.assoc(
-							inPlay,
-							_.isVector(v) ? _.nth(v, 0) : v,
-							true
-						),
-						inPlay,
-						v
-					),
-					inPlay,
-					v
-				),
-				inPlay,
-				v
-			),
+        (inPlay, k, v) => _.reduceKV(
+          (inPlay, k, v) => _.reduce(
+            (inPlay, v) => _.assoc(
+              inPlay,
+              _.isVector(v) ? _.nth(v, 0) : v,
+              true
+            ),
+            inPlay,
+            v
+          ),
+          inPlay,
+          v
+        ),
+        inPlay,
+        v
+      ),
       table: () => _.reduceKV(
         (inPlay, k1, v) => _.reduceKV(
           (inPlay, k2, v) => _.reduceKV(
@@ -538,8 +538,8 @@ const InGame = () => {
 
   return (
     <>
-			<div className="in-game">
-				<div className={`main-controls${isTable ? ' hide-controls' : ''}`}>
+      <div className="in-game">
+        <div className={`main-controls${isTable ? ' hide-controls' : ''}`}>
           <div className="field has-addons" >
             {!_.get(state, 'isGameOver') && (
               <p className="control">
@@ -563,25 +563,25 @@ const InGame = () => {
           {isTable && (
             <div className={`deck${isPicking ? ' picking' : ''}${intendsDraw ? ' intended' : ''}`} >
               {canMayI && (
-				        <button
+                <button
                   className={mayIClassName}
                   onClick={isMayI ? unMayI : mayI}
                 >
                   {isMayI ? 'Cancel' : (
                     <>
-					            May I <br />
-					            {mayIs}
+                      May I <br />
+                      {mayIs}
                     </>
                   )}
-				        </button>
+                </button>
               )}
               {canMayI && (
-				        <button
+                <button
                   className={`pass-button ${isPass ? 'cancel' : ''}`}
                   onClick={isPass ? unMayI : pass}
                 >
                   {isPass ? 'Cancel' : 'Pass'}
-				        </button>
+                </button>
               )}
               <div className="grant" >
                 {isMayIActive && isTurn && (
@@ -593,25 +593,25 @@ const InGame = () => {
                   </button>
                 )}
               </div>
-						  <div
+              <div
                 onClick={takeDiscard}
-							  className="pcard discarded"
-							  data-card-val={discard}
-						  >
-							  <img
-								  src={toSrc(fromInt(discard))}
-							  />
-						  </div>
-							{renderDeck(deckCount, drawDeck)}
+                className="pcard discarded"
+                data-card-val={discard}
+              >
+                <img
+                  src={toSrc(fromInt(discard))}
+                />
+              </div>
+              {renderDeck(deckCount, drawDeck)}
             </div>
           )}
-				</div>
+        </div>
         {!isTable && (
           <div className="score-container" >
-						<table className="table">
-							<thead>
-								<tr>
-									<th>Hand</th>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Hand</th>
                   {_.intoArray(players).map(player => (
                     <th key={player} >
                       {player}
@@ -621,8 +621,8 @@ const InGame = () => {
                     </th>
                   ))}
                 </tr>
-							</thead>
-							<tbody>
+              </thead>
+              <tbody>
                 {_.intoArray(_.range(7)).map(handId => (
                   <tr key={handId}>
                     <th>{handId + 1}</th>
@@ -635,7 +635,7 @@ const InGame = () => {
                     ))}
                   </tr>
                 ))}
-								<tr key="total" >
+                <tr key="total" >
                   <th>Total</th>
                   {_.intoArray(players).map(player => (
                     <td key={`Total.${player}`} >
@@ -643,20 +643,20 @@ const InGame = () => {
                     </td>
                   ))}
                 </tr>
-							</tbody>
-							<tfoot>
-								<tr>
-									<th>Cash</th>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Cash</th>
                   {_.intoArray(players).map(renderCashCell)}
                 </tr>
-							</tfoot>
-						</table>
+              </tfoot>
+            </table>
           </div>
         )}
         {isTable && (
         <div className={`players ${needsPass(state, playerId) || isHandOver ? 'faded' : ''}`}>
           {_.intoArray(players).map(player => {
-	          const playerId = _.get(idLookup, player);
+            const playerId = _.get(idLookup, player);
             const isTurn = playerId === turnId;
             let pClassName = "player";
             pClassName += isTurn ? ' turn' : '';
@@ -700,61 +700,61 @@ const InGame = () => {
                       }
                       const card = _.nth(fullPile, ind);
                       return (
-										    <div className="pcard">
-											    <img src={toSrc(fromInt(card))} />
+                        <div className="pcard">
+                          <img src={toSrc(fromInt(card))} />
                           {renderExtra(ind + 1)}
-										    </div>
+                        </div>
                       );
                     };
                     const extraWidth = `${35 + 15 * _.count(fullPile)}px`;
-										const onPile = (e) => {
-											const { clientX } = e;
-											const el = document.getElementById(guid);
-											if (!el || !isMyTurn || !hasDrawn) {
-												return;
-											}
-											e.nativeEvent.ignore = true;
-											const { x, width } = el.getBoundingClientRect();
-											const orientation = 2 * (clientX - x) > width ? 'RIGHT' : 'LEFT';
-											const oId = _.match({
-												RIGHT: () => 1,
-												LEFT: () => 0,
-											})(orientation);
-											const curr = _.match({
+                    const onPile = (e) => {
+                      const { clientX } = e;
+                      const el = document.getElementById(guid);
+                      if (!el || !isMyTurn || !hasDrawn) {
+                        return;
+                      }
+                      e.nativeEvent.ignore = true;
+                      const { x, width } = el.getBoundingClientRect();
+                      const orientation = 2 * (clientX - x) > width ? 'RIGHT' : 'LEFT';
+                      const oId = _.match({
+                        RIGHT: () => 1,
+                        LEFT: () => 0,
+                      })(orientation);
+                      const curr = _.match({
                         RIGHT: () => currR,
                         LEFT: () => currL,
                       })(orientation);
-											if (hasSelected) {
-												const getArgs = v => _.match({
-													RIGHT: () => [v, _.vector(selectedCard)],
-													LEFT: () => [_.vector(selectedCard), v],
-												})(orientation);
-												const newPile = _.vec(_.concat(...getArgs(fullPile)));
-												if (validatePlay(type, newPile)) {
-													setPlays(_.assocIn(
-														plays,
-														['table', player, type],
-														_.assocIn(
-															currTypePlays,
-															[pileId, oId],
-															_.vec(_.concat(...getArgs(curr)))
-														)
-													));
-												}
-												setSelectedCard(null);
-											}
-										};
+                      if (hasSelected) {
+                        const getArgs = v => _.match({
+                          RIGHT: () => [v, _.vector(selectedCard)],
+                          LEFT: () => [_.vector(selectedCard), v],
+                        })(orientation);
+                        const newPile = _.vec(_.concat(...getArgs(fullPile)));
+                        if (validatePlay(type, newPile)) {
+                          setPlays(_.assocIn(
+                            plays,
+                            ['table', player, type],
+                            _.assocIn(
+                              currTypePlays,
+                              [pileId, oId],
+                              _.vec(_.concat(...getArgs(curr)))
+                            )
+                          ));
+                        }
+                        setSelectedCard(null);
+                      }
+                    };
 
                     return (
-											<div
-												key={guid}
-												id={guid}
-												onClick={onPile}
-												style={{ width: extraWidth }}
-												className="extra-cards"
-											>
-												{renderExtra(0)}
-											</div>
+                      <div
+                        key={guid}
+                        id={guid}
+                        onClick={onPile}
+                        style={{ width: extraWidth }}
+                        className="extra-cards"
+                      >
+                        {renderExtra(0)}
+                      </div>
                     );
                   },
                   typePiles,
@@ -774,16 +774,16 @@ const InGame = () => {
                     <i className="dealer-chip hidden fas fa-chevron-circle-right" />
                   )}
                 </div>
-								<div key={player} className="player-contents" >
-									<div className="board-hand">
-										{renderDeck(_.getIn(hands, [player, 'heldCount']))}
+                <div key={player} className="player-contents" >
+                  <div className="board-hand">
+                    {renderDeck(_.getIn(hands, [player, 'heldCount']))}
                     <div className="may-i-chips">
                       {renderChip(0)}
                       {renderChip(1)}
                       {renderChip(2)}
                     </div>
-									</div>
-								</div>
+                  </div>
+                </div>
                 {downPiles}
               </div>
             );
@@ -791,31 +791,31 @@ const InGame = () => {
           <div className="reserved-space"/>
         </div>
         )}
-			</div>
+      </div>
       {isTable && (
         <>
-			    <div id="my-hand" className="my-hand">
-				    <div id="card-parent" onClick={onCardParent}>
-					    {_.intoArray(held).map((card, ind) => (
-						    <div
-							    key={mkKey(card)}
-							    className="pcard"
-							    data-card-val={card}
-							    onClick={onCard(card)}
-						    >
-							    <img
-								    className={className(card)}
-								    src={toSrc(fromInt(card))}
-							    />
-						    </div>
-					    ))}
-				    </div>
-			    </div>
-					{(() => {
-						const onDiscard = (e) => {
-							e.nativeEvent.ignore = true;
-							if (!hasSelected) {
-						    const myDiscard = _.get(plays, 'discard');
+          <div id="my-hand" className="my-hand">
+            <div id="card-parent" onClick={onCardParent}>
+              {_.intoArray(held).map((card, ind) => (
+                <div
+                  key={mkKey(card)}
+                  className="pcard"
+                  data-card-val={card}
+                  onClick={onCard(card)}
+                >
+                  <img
+                    className={className(card)}
+                    src={toSrc(fromInt(card))}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          {(() => {
+            const onDiscard = (e) => {
+              e.nativeEvent.ignore = true;
+              if (!hasSelected) {
+                const myDiscard = _.get(plays, 'discard');
                 const hasDiscard = !!myDiscard || myDiscard === 0;
                 if (hasDiscard) {
                   setSelectedPlay([
@@ -823,13 +823,13 @@ const InGame = () => {
                     () => setPlays(_.dissoc(plays, 'discard'))
                   ]);
                 }
-								return;
-							}
-							setPlays(_.assoc(plays, 'discard', selectedCard));
-							setSelectedCard(null);
-						};
-						const onCancel = () => setPlays(_.hashMap());
-						const myDiscard = _.get(plays, 'discard');
+                return;
+              }
+              setPlays(_.assoc(plays, 'discard', selectedCard));
+              setSelectedCard(null);
+            };
+            const onCancel = () => setPlays(_.hashMap());
+            const myDiscard = _.get(plays, 'discard');
             const discardSrc = toSrc(fromInt(myDiscard));
             let transform = 'translateY(100%)';
             if ((isTurn && hasDrawn) || (isFirstTurn && !hasDrawn)) {
@@ -871,8 +871,8 @@ const InGame = () => {
                     if (!hasDrawn) {
                       return;
                     }
-							      e.nativeEvent.ignore = true;
-							      if (!hasSelected) {
+                    e.nativeEvent.ignore = true;
+                    if (!hasSelected) {
                       if (hasSelectedPlay) {
                         setSelectedPlay([]);
                       } else {
@@ -888,12 +888,12 @@ const InGame = () => {
                             const unPlay = () => (
                               setPlays(_.assocIn(plays, ['down', type, id, targetId], -1))
                             );
-														setSelectedPlay([card, unPlay]);
+                            setSelectedPlay([card, unPlay]);
                           }
                         }
                       }
-								      return;
-							      }
+                      return;
+                    }
                     if (hasAll) {
                       let concat = false;
                       let args = [curr, _.vector(selectedCard)];
@@ -905,12 +905,12 @@ const InGame = () => {
                         concat = true;
                       }
                       if (concat) {
-							          setPlays(_.assocIn(
+                        setPlays(_.assocIn(
                           plays,
                           ['down', type, id],
                           _.vec(_.concat(...args))
                         ));
-							          setSelectedCard(null);
+                        setSelectedCard(null);
                         return;
                       }
                     }
@@ -919,12 +919,12 @@ const InGame = () => {
                       ['down', type],
                       _.vec(_.map(() => _.vec(_.map(() => -1, _.range(req))), _.range(goal[type])))
                     );
-							      setPlays(_.assocIn(
+                    setPlays(_.assocIn(
                       plays,
                       ['down', type],
                       _.assocIn(currTypePiles, [id, targetId], selectedCard)
                     ));
-							      setSelectedCard(null);
+                    setSelectedCard(null);
                   };
                   const needsExtra = targetId === req - 1 && _.count(curr) > req;
                   const extras = _.subvec(curr, req - 1);
@@ -935,49 +935,49 @@ const InGame = () => {
                     const card = _.nth(extras, eId);
                     const imgClassName = selectedPlay === card ? "selected" : "";
                     return (
-										  <div className="pcard">
-											  <img
+                      <div className="pcard">
+                        <img
                           className={imgClassName}
                           src={toSrc(fromInt(_.nth(extras, eId)))}
                         />
                         {renderExtra(eId + 1)}
-										  </div>
+                      </div>
                     );
                   };
                   const extraWidth = `${15 + 15 * _.count(extras)}px`;
                   const imgClassName = selectedPlay === card ? "selected" : "";
                   return needsExtra ? (
-										<div style={{ width: extraWidth }} onClick={onClick} key={targetId} className="extra-cards">
+                    <div style={{ width: extraWidth }} onClick={onClick} key={targetId} className="extra-cards">
                       {renderExtra(0)}
-										</div>
+                    </div>
                   ) : (
-										<div onClick={onClick} key={targetId} className="pcard">
-											<img
+                    <div onClick={onClick} key={targetId} className="pcard">
+                      <img
                         className={imgClassName}
                         src={toSrc(fromInt(card))}
                       />
-										</div>
+                    </div>
                   );
                 },
                 _.range(req)
               );
               return (
-								<div key={`${type}.${id}`} className="target" >
-									<div className="target-plays">
+                <div key={`${type}.${id}`} className="target" >
+                  <div className="target-plays">
                     {_.intoArray(targets)}
-									</div>
-									<span className={isInvalid ? 'invalid' : ''} >{label}</span>
+                  </div>
+                  <span className={isInvalid ? 'invalid' : ''} >{label}</span>
                   {hasAny && (
-									  <span
+                    <span
                       className="cancel"
                       onClick={() => (
-							          setPlays(_.assocIn(plays, ['down', type, id], _.vec(_.map(() => -1, _.range(req)))))
+                        setPlays(_.assocIn(plays, ['down', type, id], _.vec(_.map(() => -1, _.range(req)))))
                       )}
                     >
                       ✗
                     </span>
                   )}
-								</div>
+                </div>
               );
             };
             const goal = getGoal(state);
@@ -992,11 +992,11 @@ const InGame = () => {
               });
               let useDown = !!_.get(plays, 'down');
               const down = _.get(plays, 'down');
-	            _.meach(down, (type, piles) => (
-		            _.each(piles, (pile) => {
-			            useDown = useDown && validatePlay(type, pile);
-		            })
-	            ));
+              _.meach(down, (type, piles) => (
+                _.each(piles, (pile) => {
+                  useDown = useDown && validatePlay(type, pile);
+                })
+              ));
               const sendPlays = useDown ? _.update(plays, 'down', modGoals) : (
                 _.dissoc(plays, 'down')
               );
@@ -1034,67 +1034,67 @@ const InGame = () => {
               )
             );
             const canPlay = discardOK && downOK;
-						return (
-							<div
+            return (
+              <div
                 id="play-board"
-								style={{ transform }}
-								className="play-board"
-							>
+                style={{ transform }}
+                className="play-board"
+              >
                 <div id="play-board-top" >
                   {!hasDrawn && (
                     <div className="round-header" >
-											{handId === 6 ? 'Final Round' : `Round ${handId + 1}`}
+                      {handId === 6 ? 'Final Round' : `Round ${handId + 1}`}
                     </div>
                   )}
-									<div className={`play-controls ${!hasDrawn ? 'hidden' : ''}`} >
-										<button
-											disabled={_.count(inPlay) === 0}
-											onClick={onCancel}
-											className="button is-danger is-small"
-										>
-											Cancel
-										</button>
-										<div className="discard-space">
-											<div onClick={onDiscard} className="pcard">
-												<img
-													className={selectedPlay === myDiscard ? 'selected' : ''}
-													src={discardSrc}
-												/>
-											</div>
-											<span>Discard</span>
-										</div>
-										<button
-											disabled={!canPlay}
-											onClick={play}
-											className="button is-danger is-small"
-										>
-											End Turn
-										</button>
-									</div>
-									{(!amIDown && (
-										<>
-											<div className="play-closer is-size-7" >
-												<div />
-												<div
-													onClick={() => setViewTable(!viewTable)}
-												>
-													View {viewTable ? 'Plays' : 'Table'}
-												</div>
-												<div />
-											</div>
-										</>
-									))}
+                  <div className={`play-controls ${!hasDrawn ? 'hidden' : ''}`} >
+                    <button
+                      disabled={_.count(inPlay) === 0}
+                      onClick={onCancel}
+                      className="button is-danger is-small"
+                    >
+                      Cancel
+                    </button>
+                    <div className="discard-space">
+                      <div onClick={onDiscard} className="pcard">
+                        <img
+                          className={selectedPlay === myDiscard ? 'selected' : ''}
+                          src={discardSrc}
+                        />
+                      </div>
+                      <span>Discard</span>
+                    </div>
+                    <button
+                      disabled={!canPlay}
+                      onClick={play}
+                      className="button is-danger is-small"
+                    >
+                      End Turn
+                    </button>
+                  </div>
+                  {(!amIDown && (
+                    <>
+                      <div className="play-closer is-size-7" >
+                        <div />
+                        <div
+                          onClick={() => setViewTable(!viewTable)}
+                        >
+                          View {viewTable ? 'Plays' : 'Table'}
+                        </div>
+                        <div />
+                      </div>
+                    </>
+                  ))}
                 </div>
                 {(!amIDown && goals)}
-								<div style={{ height: `${myHandHeight}px` }} />
-							</div>
-						);
+                <div style={{ height: `${myHandHeight}px` }} />
+              </div>
+            );
           })()}
         </>
       )}
       {needsPass(state, playerId) && (
         isTurn ? (
-					<div className="hand-winner-banner" >
+          <div className="hand-winner-banner" >
             <div>
               You have indicated you would like to draw from the deck.
               Currently waiting to see if any other players woud like to May I...
@@ -1107,35 +1107,35 @@ const InGame = () => {
             </button>
           </div>
         ) : (
-					<div className="hand-winner-banner" >
-						<div>
-							<span className="has-text-weight-bold" >
-								{_.nth(players, turnId)}
-							</span>
-							has indicated they would like to draw from the deck. What would you like to do?
-						</div>
-						<div className="field has-addons">
-							<p className="control">
-								<button
-									onClick={isPass ? unMayI : pass}
-									className={`button is-warning is-small ${isPass ? 'is-active' : ''}`}
-								>
-									Pass
-								</button>
-							</p>
-							<p className="control">
-								<button
-									onClick={isMayI ? unMayI : mayI}
-									className={`button is-danger is-small ${isMayI ? 'is-active' : ''}`}
-								>
-									May I
-								</button>
-							</p>
-						</div>
-						<div className={isMayI || isPass ? '' : 'hidden'} >
-							Waiting on other players...
-						</div>
-					</div>
+          <div className="hand-winner-banner" >
+            <div>
+              <span className="has-text-weight-bold" >
+                {_.nth(players, turnId)}
+              </span>
+              has indicated they would like to draw from the deck. What would you like to do?
+            </div>
+            <div className="field has-addons">
+              <p className="control">
+                <button
+                  onClick={isPass ? unMayI : pass}
+                  className={`button is-warning is-small ${isPass ? 'is-active' : ''}`}
+                >
+                  Pass
+                </button>
+              </p>
+              <p className="control">
+                <button
+                  onClick={isMayI ? unMayI : mayI}
+                  className={`button is-danger is-small ${isMayI ? 'is-active' : ''}`}
+                >
+                  May I
+                </button>
+              </p>
+            </div>
+            <div className={isMayI || isPass ? '' : 'hidden'} >
+              Waiting on other players...
+            </div>
+          </div>
         )
       )}
       {isHandOver && (
@@ -1155,7 +1155,7 @@ const InGame = () => {
               Deal Next Hand
             </button>
           )}
-				</div>
+        </div>
       )}
     </>
   );
@@ -1173,22 +1173,22 @@ let lastError = null;
 export const App = ({ e_response, postRequest }) => {
   const [error, setError] = useState(null);
   const [state, setState] = useState(null);
-	const e_gameState = _.pipeline(
-		e_response,
-		_.partial(FRP.filter, _.match({
-			[API.Response.GameState]: () => true,
-			[_.DEFAULT]: () => false
-		})),
-		_.partial(FRP.fmap, _.g('gameState'))
-	);
-	const e_error = _.pipeline(
-		e_response,
-		_.partial(FRP.filter, _.match({
-			[API.Response.Error]: () => true,
-			[_.DEFAULT]: () => false
-		})),
-		_.partial(FRP.fmap, _.g('error'))
-	);
+  const e_gameState = _.pipeline(
+    e_response,
+    _.partial(FRP.filter, _.match({
+      [API.Response.GameState]: () => true,
+      [_.DEFAULT]: () => false
+    })),
+    _.partial(FRP.fmap, _.g('gameState'))
+  );
+  const e_error = _.pipeline(
+    e_response,
+    _.partial(FRP.filter, _.match({
+      [API.Response.Error]: () => true,
+      [_.DEFAULT]: () => false
+    })),
+    _.partial(FRP.fmap, _.g('error'))
+  );
   useEffect(() => (FRP.consume(setState, e_gameState)), []);
   useEffect(
     () => FRP.consume(
@@ -1206,7 +1206,7 @@ export const App = ({ e_response, postRequest }) => {
   return (
     <C.Provider value={context} >
       <div className="container content" >
-				<CurrScreen />
+        <CurrScreen />
       </div>
       <div className={`notification is-danger${error ? '' : ' hidden'}`} >
         <button className="delete" onClick={() => setError(null)} />
